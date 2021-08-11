@@ -61,7 +61,7 @@ sim.disperse <- function(startpoint.df, raster){
 }
 
 
-
+### Function to simulate 1 decision for moving from one location to another on given raster, weighted
 sim.decision <- function(location, raster, prev.angle){
   
   options <- as.data.frame(extract(raster, location, buffer = R, cellnumbers = T, df = T)) %>%
@@ -69,15 +69,30 @@ sim.decision <- function(location, raster, prev.angle){
   D.raster <- raster::distanceFromPoints(rasterFromCells(raster, options$CellID), location)
   options$D <- as.data.frame(extract(D.raster, location, buffer = R, cellnumbers = T, df = T))[,3]
   options <- cbind(options, xyFromCell(raster, cell = options$CellID)) %>%
-    mutate(A.rad = base::atan2(cos(location[,2])*sin(y)-sin(location[,2]*cos(y)&cos(x-location[,1])) , #Y
-                               cos(y)*sin(y-location[,1])), #X
-           A.deg = drop_units(set_units(as_units(A.rad, "radians"), "degrees")),
-           A.deg = ifelse(A.deg < 0, 360 + A.deg, A.deg),
-           A.diff = )
+    mutate(A = geosphere::bearing(sp::spTransform(sp::SpatialPoints(coords = location, proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs ")),
+                                  sp::spTransform(sp::SpatialPoints(coords = matrix(c(x,y), ncol =2), proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs ")))) %>%
+    mutate(A = ifelse(A < 0, 360 + A, A),
+           TurnA = 180 - abs(abs(A - prev.angle) - 180))
+  
   return(options)
   
 }
-test <- sim.decision(move.sim[[1]][1,3:4], sim.world) #, runif(1, 0, 360))
 
 
+### Function to calculate the weight of a raster cell for sim.decision
+cell.selection.w <- function(H, rho, D, k, theta, A, tau, alpha){
+  sigma <- 1/tau
+  sigma2 <- sigma^2
+  w <- <-H^exp(rho - 1) * 1/(gamma(k) * (theta^k)) * D^(k-1) * exp(-D/theta) * 1/((2*pi*sigma2)) * exp(-(arccos(alpha)^2)/(2*sigma2))
+  return(w)
+}
 
+ta <- runif(1, 0, 360)
+
+test <- sim.decision(move.sim[[1]][1,3:4], sim.world, ta)
+test <- st_as_sf(test, coords = c("x","y"), crs = 32619)
+ggplot2::ggplot(data = test) +
+  ggplot2::geom_sf(data = test, ggplot2::aes(color = TurnA))
+
+sp::spTransform(sp::SpatialPoints(coords = location, proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs "))
+rgdal::project(matrix(as.numeric(location), nrow = 1), proj = projection(4326))
