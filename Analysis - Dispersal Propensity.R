@@ -38,6 +38,9 @@ capsites.raw <- read.csv("CaptureSites - Sheet1.csv")
 capsites.slim <- capsites.raw %>%
   dplyr::select(Town, CapLoc = Location.Name, Lat = Latitude, Long = Longitude)
 
+capsites.sf <- st_as_sf(capsites.slim, coords = c("Long", "Lat"), crs = projection(gpslocations.raw))
+st_write(capsites.sf, dsn = "./GIS", layer = "CaptureSites.shp", driver = "ESRI Shapefile")
+
 # Load Town Boundaries Shapefile
 townbound <- st_read("E:/Maine Drive/GIS/Maine_Boundaries_Town_and_Townships_Polygon-shp/Maine_Boundaries_Town_and_Townships_Polygon.shp") %>%
   dplyr::select(Town = TOWN)
@@ -48,6 +51,7 @@ townbound <- st_read("E:/Maine Drive/GIS/Maine_Boundaries_Town_and_Townships_Pol
 startloc <- merge(trap.slim, capsites.slim , by = "CapLoc", all.x = T) %>%
   dplyr::select(BirdID, BirdID2, Date = CapDate, Town) %>%
   mutate(Date = as.Date(Date, format = "%m/%d/%Y"))
+
 
 
 ###################################################################################################################
