@@ -48,7 +48,11 @@ for(i in 1:nrow(obs.paths)){
 }
 
 #DataFrame with 
-sim.turkey <- do.call(rbind.data.frame, sim.turkey.list)
+sim.turkey <- do.call(rbind.data.frame, sim.turkey.list) %>%
+  mutate(rho = runif(N.simturk*length(sim.turkey.list), 0.1, 5),
+         k = runif(N.simturk*length(sim.turkey.list), 0.1, 4),
+         theta = 2,
+         tau = runif(N.simturk*length(sim.turkey.list), 0.1, 3.5))
 
 move.sim <- list()
 for(i in 1:nrow(sim.turkey)){
@@ -56,7 +60,7 @@ for(i in 1:nrow(sim.turkey)){
 }
 
 ### Simulate Movement
-sim.disperse <- function(startpoint.df, raster){
+sim.disperse <- function(startpoint.df, rasterday, rasterroost){
   
 }
 
@@ -64,35 +68,29 @@ sim.disperse <- function(startpoint.df, raster){
 ### Function to simulate 1 decision for moving from one location to another on given raster, weighted
 sim.decision <- function(location, raster, prev.angle){
   
-  options <- as.data.frame(extract(raster, location, buffer = R, cellnumbers = T, df = T)) %>%
+  options <- as.data.frame(extract(raster, location[1,3:4], buffer = R, cellnumbers = T, df = T)) %>%
     rename(HS = layer, CellID = cells)
-  D.raster <- raster::distanceFromPoints(rasterFromCells(raster, options$CellID), location)
-  options$D <- as.data.frame(extract(D.raster, location, buffer = R, cellnumbers = T, df = T))[,3]
+  D.raster <- raster::distanceFromPoints(rasterFromCells(raster, options$CellID), location[1,3:4])
+  options$D <- as.data.frame(extract(D.raster, location[1,3:4], buffer = R, cellnumbers = T, df = T))[,3]
   options <- cbind(options, xyFromCell(raster, cell = options$CellID)) %>%
-    mutate(A = geosphere::bearing(sp::spTransform(sp::SpatialPoints(coords = location, proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs ")),
+    mutate(A = geosphere::bearing(sp::spTransform(sp::SpatialPoints(coords = location[1,3:4], proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs ")),
                                   sp::spTransform(sp::SpatialPoints(coords = matrix(c(x,y), ncol =2), proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs ")))) %>%
     mutate(A = ifelse(A < 0, 360 + A, A),
-           TurnA = 180 - abs(abs(A - prev.angle) - 180))
+           TurnA = 180 - abs(abs(A - prev.angle) - 180)) %>%
+    # mutate(W = cell.selection.w(HS, D, A, location$rho[1], location$k[1], location$theta[1], location$tau[1]))
+    mutate(W = runif(nrow(options), 0, 1))
+  decision <- sample(1:nrow(options), 1, prob = options$W)
   
-  return(options)
+  return(options[decision,])
   
 }
 
 
 ### Function to calculate the weight of a raster cell for sim.decision
-cell.selection.w <- function(H, rho, D, k, theta, A, tau, alpha){
+cell.selection.w <- function(H, D, alpha, rho, k, theta, tau){
   sigma <- 1/tau
   sigma2 <- sigma^2
-  w <- <-H^exp(rho - 1) * 1/(gamma(k) * (theta^k)) * D^(k-1) * exp(-D/theta) * 1/((2*pi*sigma2)) * exp(-(arccos(alpha)^2)/(2*sigma2))
+  w <- H^exp(rho - 1) * 1/(gamma(k) * (theta^k)) * D^(k-1) * exp(-D/theta) * 1/((2*pi*sigma2)) * exp(-(acos(alpha)^2)/(2*sigma2))
   return(w)
 }
 
-ta <- runif(1, 0, 360)
-
-test <- sim.decision(move.sim[[1]][1,3:4], sim.world, ta)
-test <- st_as_sf(test, coords = c("x","y"), crs = 32619)
-ggplot2::ggplot(data = test) +
-  ggplot2::geom_sf(data = test, ggplot2::aes(color = TurnA))
-
-sp::spTransform(sp::SpatialPoints(coords = location, proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs "))
-rgdal::project(matrix(as.numeric(location), nrow = 1), proj = projection(4326))
