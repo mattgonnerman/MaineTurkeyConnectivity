@@ -427,3 +427,6 @@ cat("\n")
 
 sink()
 
+### WAIC Table
+
+

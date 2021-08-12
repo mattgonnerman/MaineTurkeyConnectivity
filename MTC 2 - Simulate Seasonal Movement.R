@@ -4,13 +4,13 @@
 # Simulate turkey dispersals from capture locations
 
 ### Load Packages
-lapply(c("dplyr", "raster", "sf", "lubridate", "units"), require, character.only = TRUE)
+lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, character.only = TRUE)
 
 
 ### User-Defined variables used for simulations or setup
 N.simturk <- 10 #The number of simulations PER STARTING POINTS
 R <- 250 #Perception Distance, how far away will turkey still be able to consider a patch
-N.steps.max <- 500 #15 steps * number of days
+N.steps.max <- 10 #15 steps * number of days
 
 ### Load/Setup Start and End Locations
 startlocs <- st_read("./GIS/Disperser Start.shp")
@@ -49,15 +49,16 @@ for(i in 1:nrow(obs.paths)){
 
 #DataFrame with 
 sim.turkey <- do.call(rbind.data.frame, sim.turkey.list) %>%
-  mutate(rho = runif(N.simturk*length(sim.turkey.list), 0.1, 5),
-         k = runif(N.simturk*length(sim.turkey.list), 0.1, 4),
-         theta = 2,
-         tau = runif(N.simturk*length(sim.turkey.list), 0.1, 3.5)) %>% 
+  mutate(p = runif(N.simturk*length(sim.turkey.list), .1, 5),
+         rho = runif(N.simturk*length(sim.turkey.list), 0.26868487 - (2*0.01281980), 0.26868487 + (2*0.01281980)),
+         mu = runif(N.simturk*length(sim.turkey.list), 0.08464538 - (2*0.04287019), 0.08464538 + (2*0.04287019)),
+         k = runif(N.simturk*length(sim.turkey.list), 0.84834637 - (2*1.744392e-02), 0.84834637 + (2*1.744392e-02)),
+         theta = runif(N.simturk*length(sim.turkey.list), 0.00311007 - (2*7.517423e-05), 0.00311007 + (2*7.517423e-05))) %>% 
   rename(Long = StartX, Lat = StartY) %>% 
   mutate(Step = 1)
 
 move.sim <- list()
-for(i in 1:nrow(sim.turkey)){
+for(i in 1){
   move.sim[[i]] <- sim.disperse(sim.turkey[i,], sim.world, sim.world)
 }
 
@@ -89,21 +90,6 @@ sim.disperse <- function(startpoint.df, rasterday, rasterroost){
   return(output.df)
 }
 
-
-
-#### TEST CODE ####
-
-test <- sim.disperse(move.sim[[1]], sim.world, sim.world)
-test.line <-  st_linestring(as.matrix(test[,c("x", "y")]))
-plot(test.line)
-move.sim[[1]][1,c("Long", "Lat")]
-
-
-
-#####################################################################
-
-
-
 ### Function to simulate 1 decision for moving from one location to another on given raster, weighted
 sim.decision <- function(location, raster, prev.angle){
   
@@ -116,8 +102,9 @@ sim.decision <- function(location, raster, prev.angle){
                                   sp::spTransform(sp::SpatialPoints(coords = matrix(c(x,y), ncol =2), proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs ")))) %>%
     mutate(A = ifelse(A < 0, 360 + A, A),
            TurnA = 180 - abs(abs(A - prev.angle) - 180)) %>%
-    # mutate(W = cell.selection.w(HS, D, A, location$rho[1], location$k[1], location$theta[1], location$tau[1]))
-    mutate(W = runif(nrow(options), 0, 1))
+    mutate(TurnA = pi* TurnA/180) %>%
+    mutate(W = cell.selection.w(HS, D, A, location$p[1], location$k[1], 1/location$theta[1], location$mu[1], location$rho[1]))
+    # mutate(W = runif(nrow(options), 0, 1))
   decision <- sample(1:nrow(options), 1, prob = options$W)
   
   return(options[decision,])
@@ -126,13 +113,40 @@ sim.decision <- function(location, raster, prev.angle){
 
 
 ### Function to calculate the weight of a raster cell for sim.decision
-cell.selection.w <- function(H, D, alpha, rho, k, theta, tau){
-  sigma <- 1/tau
-  sigma2 <- sigma^2
-  w <- H^exp(rho - 1) * 1/(gamma(k) * (theta^k)) * D^(k-1) * exp(-D/theta) * 1/((2*pi*sigma2)) * exp(-(cos(alpha)^2)/(2*sigma2))
+cell.selection.w <- function(H, D, TA, p, k, theta, mu, rho){
+  HS <- H^exp(p - 1) 
+  Step <- dgamma(D, k, 1/theta)
+  Turn <- dwrpcauchy(TA, mu, rho)
+  w <- HS * Step * Turn
   return(w)
 }
 
 
-### Testing Code
-system.time(sim.decision(move.sim[[1]], sim.world, 50))
+
+#### TEST CODE ####
+location <- move.sim[[1]][1,]
+raster <- sim.world
+prev.angle <- 100
+
+sim.decision(location, raster, prev.angle)
+
+location <- sim.turkey[1,]
+H <- options$HS
+D <- options$D
+TA <-  options$TurnA
+p <-location$p[1]
+k <- location$k[1]
+theta <- 1/location$theta[1]
+mu <- location$mu[1]
+rho <- location$rho[1]
+cell.selection.w(H, D, TA, location$p[1], location$k[1], 1/location$theta[1], location$mu[1], location$rho[1])
+
+test <- sim.disperse(move.sim[[1]], sim.world, sim.world)
+test.line <-  st_linestring(as.matrix(test[,c("x", "y")]))
+plot(test.line)
+move.sim[[1]][1,c("Long", "Lat")]
+
+move.sim[[1]][1,]
+
+
+#####################################################################
