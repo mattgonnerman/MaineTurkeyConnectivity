@@ -57,10 +57,6 @@ sim.turkey <- do.call(rbind.data.frame, sim.turkey.list) %>%
   rename(Long = StartX, Lat = StartY) %>% 
   mutate(Step = 1)
 
-move.sim <- list()
-for(i in 1){
-  move.sim[[i]] <- sim.disperse(sim.turkey[i,], sim.world, sim.world)
-}
 
 ### Simulate Spring Seasonal Movement Track for 1 bird
 sim.disperse <- function(startpoint.df, rasterday, rasterroost){
@@ -78,11 +74,11 @@ sim.disperse <- function(startpoint.df, rasterday, rasterroost){
   for(i in 1:N.steps.max){
     if(i %% 15 == 0){
       step.decision <- sim.decision(output.df[i,], rasterroost, output.df$TurnA[i])
-      output.df[i+1,] <- cbind(output.df[i,1:11], step.decision) %>% mutate(Step = Step +1)
+      output.df[i+1,] <- cbind(output.df[i,1:12], step.decision) %>% mutate(Step = Step +1)
       
     }else{
       step.decision <- sim.decision(output.df[i,], rasterday, output.df$TurnA[i])
-      output.df[i+1,] <- cbind(output.df[i,1:11], step.decision) %>% mutate(Step = Step +1)
+      output.df[i+1,] <- cbind(output.df[i,1:12], step.decision) %>% mutate(Step = Step +1)
     }
   }
   
@@ -115,33 +111,34 @@ sim.decision <- function(location, raster, prev.angle){
 ### Function to calculate the weight of a raster cell for sim.decision
 cell.selection.w <- function(H, D, TA, p, k, theta, mu, rho){
   HS <- H^exp(p - 1) 
-  Step <- dgamma(D, k, 1/theta)
-  Turn <- dwrpcauchy(TA, mu, rho)
-  w <- HS * Step * Turn
+  S <- dgamma(D, k, 1/theta)
+  TnA <- dwrpcauchy(TA, mu, rho)
+  w <- HS * S * TnA
   return(w)
 }
 
 
 
 #### TEST CODE ####
-location <- move.sim[[1]][1,]
+startpoint.df <- sim.turkey[1,]
+rasterday <- sim.world
+rasterroost<- sim.world
+
+
+
+move.sim <- list()
+# for(i in 1:nrow(sim.turkey)){
+for(i in 1){
+  move.sim[[i]] <- sim.disperse(sim.turkey[i,], sim.world, sim.world)
+}
+
+location <- sim.turkey[1,]
 raster <- sim.world
 prev.angle <- 100
 
 sim.decision(location, raster, prev.angle)
 
-location <- sim.turkey[1,]
-H <- options$HS
-D <- options$D
-TA <-  options$TurnA
-p <-location$p[1]
-k <- location$k[1]
-theta <- 1/location$theta[1]
-mu <- location$mu[1]
-rho <- location$rho[1]
-cell.selection.w(H, D, TA, location$p[1], location$k[1], 1/location$theta[1], location$mu[1], location$rho[1])
-
-test <- sim.disperse(move.sim[[1]], sim.world, sim.world)
+test <- sim.disperse(sim.turkey[1,], sim.world, sim.world)
 test.line <-  st_linestring(as.matrix(test[,c("x", "y")]))
 plot(test.line)
 move.sim[[1]][1,c("Long", "Lat")]
