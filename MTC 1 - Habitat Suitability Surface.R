@@ -5,6 +5,9 @@ lapply(c("dplyr", "ggplot2", "move", "sf", "lubridate"), require, character.only
 ### Load Dispersal Movement Tracks from Movebanks ###
 login <- movebankLogin(username = "matthew.gonnerman", password="26qPDLY9YN")
 
+
+#################################################################################################
+### Download Used Locations for Seasonal Movements
 # Load df with dispersal timestamps
 # Start time is when hen began longer steps and left her wintering home range 
 # End time is when hen returned to localized movements in nesting range
@@ -37,6 +40,9 @@ movement.points1 <- movement.points %>%
   dplyr::select(BirdID, location_lat, location_long, timestamp) 
 write.csv(movement.points1, "GPS Seasonal - Used.csv", row.names = F) #All points 
 
+
+
+##############################################################################################
 ### Create Available Points from Used Locations
 # https://terpconnect.umd.edu/~egurarie/teaching/SpatialModelling_AKTWS2018/6_RSF_SSF.html#5_ssf_with_multiple_animals
 pcks <- list("sp", "sf", "dplyr", "raster", "rgdal", "lubridate", "amt")
@@ -76,23 +82,31 @@ alllocations.sff <- st_as_sf(AllPoints.ssf,
                              coords = c("x2_", "y2_"))
 st_write(alllocations.sff, ".", layer = "SSF All points", driver = "ESRI Shapefile", delete_layer = T)
 
+
+
+################################################################################################
+### EXTRACT VALUES
+pcks <- list("sp", "sf", "dplyr", "raster", "rgdal", "lubridate", "amt")
+sapply(pcks, require, char = TRUE)
 ### Merge Locations with Landcover Covariates (Rasters were prepared in ArcGIS)
+## Limited to Statewide Datasets
 # Distance to Roads
-DtR.rast <- raster("E:/GitHub/NestHabitatQuality/GIS/DisttoRoad.tif")
+DtR.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/D2Road_30m.tif")
 # Distance to Forest Edge - LiDAR
-DtFE.rast <- raster("E:/GitHub/NestHabitatQuality/GIS/DisttoEdge.tif")
-# Wetlands - WETCHAR/National Wetland Inventory
-# Wetland.rast <- raster("E:/Maine Drive/Analysis/Kaj Thesis/Covariate Data/BA_final_0.tif")
-# Streams/Rivers - NLCD
-Water.rast <- raster("E:/GitHub/NestHabitatQuality/GIS/Water.tif")
+DtFE.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/D2Edge_30m.tif")
+# Slope - DEM
+Slope.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/ME_Slope_30m.tif")
 # Agriculture - NLCD
-Ag.rast <- raster("E:/GitHub/NestHabitatQuality/GIS/Agriculture.tif")
+Ag.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/Ag_30m_bin.tif")
 # Developed - NLCD
-Dev.rast <- raster("E:/GitHub/NestHabitatQuality/GIS/Developed.tif")
-# Elevation/Slope - DEM
-Slope.rast <- raster("E:/Maine Drive/GIS/Elevation/ME_Slope.tif")
-# Basal Area - LiDAR
-# BA.rast <- raster("E:/Maine Drive/Analysis/Kaj Thesis/Covariate Data/BA_final_0.tif")
+Dev.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/Dev_30m_bin.tif")
+#Forest - NLCD
+Forest.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/Forest_30m_bin.tif")
+#Wetlands - Maine GIS Catalog
+Wetland.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/Wetland_30m.tif")
+# Streams/Rivers - NLCD
+Water.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/Water_30m_bin.tif")
+
 
 #Extract Spatial Covariates
 alllocations.sff <- st_read("SSF All points.shp") %>% 
@@ -101,12 +115,10 @@ alllocations.sff <- st_read("SSF All points.shp") %>%
 
 alllocations.sff$DtR.cov <- raster::extract(DtR.rast, alllocations.sff)
 alllocations.sff$DtFE.cov <- raster::extract(DtFE.rast, alllocations.sff)
-# alllocations.sff$Wetland.cov <- raster::extract(Wetland.rast, alllocations.sff)
-alllocations.sff$Water.cov <- raster::extract(Water.rast, alllocations.sff)
+alllocations.sff$Slope.cov <- raster::extract(Slope.rast, alllocations.sff)
 alllocations.sff$Ag.cov <- raster::extract(Ag.rast, alllocations.sff)
 alllocations.sff$Dev.cov <- raster::extract(Dev.rast, alllocations.sff)
-alllocations.sff$Slope.cov <- raster::extract(Slope.rast, alllocations.sff)
-# alllocations.sff$BA.cov <- raster::extract(BA.rast, alllocations.sff)
+alllocations.sff$Wetland.cov <- raster::extract(Wetland.rast, alllocations.sff)
 
 ### Convert to final dataframe for SSF and clean up
 AllPoints.ssf.df <- alllocations.sff %>%
@@ -114,7 +126,9 @@ AllPoints.ssf.df <- alllocations.sff %>%
 st_geometry(AllPoints.ssf.df) <- NULL
 write.csv(AllPoints.ssf.df, "SSF_SeasonalMove_inputs.csv", row.names = F)
 
-############
+
+
+####################################################################################################
 ### INLA ###
 ############
 # install.packages("INLA", repos=c(getOption("repos"), INLA="https://inla.r-inla-download.org/R/stable"), dep=TRUE)
@@ -123,10 +137,6 @@ require(dplyr)
 
 AllPoints.ssf.df <- read.csv("SSF_SeasonalMove_inputs.csv") %>%
   mutate(BirdID = as.numeric(as.factor(BirdID)))
-
-# install.packages("INLA", repos=c(getOption("repos"), INLA="https://inla.r-inla-download.org/R/stable"), dep=TRUE)
-require(INLA)
-require(dplyr)
 
 #Create functions for outputs
 inla_emarginal <- function(r.out){ 
@@ -151,15 +161,52 @@ inla_mmarginal <- function(r.out){
 mean.beta <- 0
 prec.beta <- 1e-4  
 
+niid <- length(unique(AllPoints.ssf.df$BirdID))
+
 ################################################################################### 
 ### MODELS
 sink("Seasonal Movement SSF Results.csv")
+cat("SeasonalMove ~ 1")
+cat('\n')
+formula.random <- case_ ~  -1 + #Fixed effects
+  sl_ + #step length
+  f(ConditionID, model = "iid", hyper = list(theta = list(initial = log(1e-6), fixed = T))) #Conditional
+
+ssf.null.seasonalmove <- inla(formula.random, family ="Poisson", data=AllPoints.ssf.df, 
+                            control.fixed = list(
+                              mean = mean.beta,
+                              prec = list(default = prec.beta)),
+                            control.compute = list(mlik = TRUE, dic = TRUE, waic = TRUE))
+write.csv(ssf.null.seasonalmove$summary.fixed)
+write.csv(ssf.null.seasonalmove$summary.hyperpar)
+cat('Posterior Mean of Variance: ')
+cat('\n')
+cat(inla_emarginal(ssf.null.seasonalmove))
+cat('\n')
+cat('Posterior Mode of Variance: ')
+cat('\n')
+cat(inla_mmarginal(ssf.null.seasonalmove))
+cat("\n")
+cat('WAIC: ')
+cat('\n')
+cat(ssf.null.seasonalmove$waic$waic)
+cat("\n")
+cat('DIC: ')
+cat('\n')
+cat(ssf.null.seasonalmove$dic$dic)
+cat("\n")
+cat('Marginal Likelihood: ')
+cat('\n')
+cat(ssf.null.seasonalmove$mlik[2,1])
+cat("\n")
+cat("\n")
+
 cat("SeasonalMove ~ Ag + Ag|IND")
 cat('\n')
 formula.random <- case_ ~  -1 + Ag.cov + #Fixed effects
   sl_ + #step length
   f(ConditionID, model = "iid", hyper = list(theta = list(initial = log(1e-6), fixed = T))) + #Conditional
-  f(BirdID,Ag.cov,values=1:24,model="iid", #Random Slope
+  f(BirdID,Ag.cov,values=1:niid,model="iid", #Random Slope
     hyper=list(theta=list(initial=log(1),fixed=F,prior="pc.prec",param=c(3,0.05))))
 
 ssf.Ag.seasonalmove <- inla(formula.random, family ="Poisson", data=AllPoints.ssf.df, 
@@ -196,7 +243,7 @@ cat('\n')
 formula.random <- case_ ~  -1 + Dev.cov + #Fixed effects
   sl_ + #step length
   f(ConditionID, model = "iid", hyper = list(theta = list(initial = log(1e-6), fixed = T))) + #Conditional
-  f(BirdID,Dev.cov,values=1:24,model="iid", #Random Slope
+  f(BirdID,Dev.cov,values=1:niid,model="iid", #Random Slope
     hyper=list(theta=list(initial=log(1),fixed=F,prior="pc.prec",param=c(3,0.05))))
 
 ssf.Dev.seasonalmove <- inla(formula.random, family ="Poisson", data=AllPoints.ssf.df, 
@@ -233,7 +280,7 @@ cat('\n')
 formula.random <- case_ ~  -1 + DtR.cov + #Fixed effects
   sl_ + #step length
   f(ConditionID, model = "iid", hyper = list(theta = list(initial = log(1e-6), fixed = T))) + #Conditional
-  f(BirdID,DtR.cov,values=1:24,model="iid", #Random Slope
+  f(BirdID,DtR.cov,values=1:niid,model="iid", #Random Slope
     hyper=list(theta=list(initial=log(1),fixed=F,prior="pc.prec",param=c(3,0.05))))
 
 ssf.DtR.seasonalmove <- inla(formula.random, family ="Poisson", data=AllPoints.ssf.df, 
@@ -270,7 +317,7 @@ cat('\n')
 formula.random <- case_ ~  -1 + DtFE.cov + #Fixed effects
   sl_ + #step length
   f(ConditionID, model = "iid", hyper = list(theta = list(initial = log(1e-6), fixed = T))) + #Conditional
-  f(BirdID,DtFE.cov,values=1:24,model="iid", #Random Slope
+  f(BirdID,DtFE.cov,values=1:niid,model="iid", #Random Slope
     hyper=list(theta=list(initial=log(1),fixed=F,prior="pc.prec",param=c(3,0.05))))
 
 ssf.DtFE.seasonalmove <- inla(formula.random, family ="Poisson", data=AllPoints.ssf.df, 
@@ -302,40 +349,40 @@ cat(ssf.DtFE.seasonalmove$mlik[2,1])
 cat("\n")
 cat("\n")
 
-cat("SeasonalMove ~ Water + Water|IND")
+cat("SeasonalMove ~ Wetland + Wetland|IND")
 cat('\n')
-formula.random <- case_ ~  -1 + Water.cov + #Fixed effects
+formula.random <- case_ ~  -1 + Wetland.cov + #Fixed effects
   sl_ + #step length
   f(ConditionID, model = "iid", hyper = list(theta = list(initial = log(1e-6), fixed = T))) + #Conditional
-  f(BirdID,Water.cov,values=1:24,model="iid", #Random Slope
+  f(BirdID,Wetland.cov,values=1:niid,model="iid", #Random Slope
     hyper=list(theta=list(initial=log(1),fixed=F,prior="pc.prec",param=c(3,0.05))))
 
-ssf.Water.seasonalmove <- inla(formula.random, family ="Poisson", data=AllPoints.ssf.df, 
+ssf.Wetland.seasonalmove <- inla(formula.random, family ="Poisson", data=AllPoints.ssf.df, 
                             control.fixed = list(
                               mean = mean.beta,
                               prec = list(default = prec.beta)),
                             control.compute = list(mlik = TRUE, dic = TRUE, waic = TRUE))
-write.csv(ssf.Water.seasonalmove$summary.fixed)
-write.csv(ssf.Water.seasonalmove$summary.hyperpar)
+write.csv(ssf.Wetland.seasonalmove$summary.fixed)
+write.csv(ssf.Wetland.seasonalmove$summary.hyperpar)
 cat('Posterior Mean of Variance: ')
 cat('\n')
-cat(inla_emarginal(ssf.Water.seasonalmove))
+cat(inla_emarginal(ssf.Wetland.seasonalmove))
 cat('\n')
 cat('Posterior Mode of Variance: ')
 cat('\n')
-cat(inla_mmarginal(ssf.Water.seasonalmove))
+cat(inla_mmarginal(ssf.Wetland.seasonalmove))
 cat("\n")
 cat('WAIC: ')
 cat('\n')
-cat(ssf.Water.seasonalmove$waic$waic)
+cat(ssf.Wetland.seasonalmove$waic$waic)
 cat("\n")
 cat('DIC: ')
 cat('\n')
-cat(ssf.Water.seasonalmove$dic$dic)
+cat(ssf.Wetland.seasonalmove$dic$dic)
 cat("\n")
 cat('Marginal Likelihood: ')
 cat('\n')
-cat(ssf.Water.seasonalmove$mlik[2,1])
+cat(ssf.Wetland.seasonalmove$mlik[2,1])
 cat("\n")
 cat("\n")
 
@@ -344,7 +391,7 @@ cat('\n')
 formula.random <- case_ ~  -1 + Slope.cov + #Fixed effects
   sl_ + #step length
   f(ConditionID, model = "iid", hyper = list(theta = list(initial = log(1e-6), fixed = T))) + #Conditional
-  f(BirdID,Slope.cov,values=1:24,model="iid", #Random Slope
+  f(BirdID,Slope.cov,values=1:niid,model="iid", #Random Slope
     hyper=list(theta=list(initial=log(1),fixed=F,prior="pc.prec",param=c(3,0.05))))
 
 ssf.Slope.seasonalmove <- inla(formula.random, family ="Poisson", data=AllPoints.ssf.df, 
@@ -352,66 +399,30 @@ ssf.Slope.seasonalmove <- inla(formula.random, family ="Poisson", data=AllPoints
                               mean = mean.beta,
                               prec = list(default = prec.beta)),
                             control.compute = list(mlik = TRUE, dic = TRUE, waic = TRUE))
-write.csv(ssf.Ag.seasonalmove$summary.fixed)
-write.csv(ssf.Ag.seasonalmove$summary.hyperpar)
+write.csv(ssf.Slope.seasonalmove$summary.fixed)
+write.csv(ssf.Slope.seasonalmove$summary.hyperpar)
 cat('Posterior Mean of Variance: ')
 cat('\n')
-cat(inla_emarginal(ssf.Ag.seasonalmove))
+cat(inla_emarginal(ssf.Slope.seasonalmove))
 cat('\n')
 cat('Posterior Mode of Variance: ')
 cat('\n')
-cat(inla_mmarginal(ssf.Ag.seasonalmove))
+cat(inla_mmarginal(ssf.Slope.seasonalmove))
 cat("\n")
 cat('WAIC: ')
 cat('\n')
-cat(ssf.Ag.seasonalmove$waic$waic)
+cat(ssf.Slope.seasonalmove$waic$waic)
 cat("\n")
 cat('DIC: ')
 cat('\n')
-cat(ssf.Ag.seasonalmove$dic$dic)
+cat(ssf.Slope.seasonalmove$dic$dic)
 cat("\n")
 cat('Marginal Likelihood: ')
 cat('\n')
-cat(ssf.Ag.seasonalmove$mlik[2,1])
+cat(ssf.Slope.seasonalmove$mlik[2,1])
 cat("\n")
 cat("\n")
 
-cat("SeasonalMove ~ 1|IND")
-cat('\n')
-formula.random <- case_ ~  -1 + #Fixed effects
-  sl_ + #step length
-  f(ConditionID, model = "iid", hyper = list(theta = list(initial = log(1e-6), fixed = T))) + #Conditional
-  f(BirdID,values=1:24,model="iid", #Random Slope
-    hyper=list(theta=list(initial=log(1),fixed=F,prior="pc.prec",param=c(3,0.05))))
-
-ssf.Slope.seasonalmove <- inla(formula.random, family ="Poisson", data=AllPoints.ssf.df, 
-                               control.fixed = list(
-                                 mean = mean.beta,
-                                 prec = list(default = prec.beta)),
-                               control.compute = list(mlik = TRUE, dic = TRUE, waic = TRUE))
-write.csv(ssf.Ag.seasonalmove$summary.fixed)
-write.csv(ssf.Ag.seasonalmove$summary.hyperpar)
-cat('Posterior Mean of Variance: ')
-cat('\n')
-cat(inla_emarginal(ssf.Ag.seasonalmove))
-cat('\n')
-cat('Posterior Mode of Variance: ')
-cat('\n')
-cat(inla_mmarginal(ssf.Ag.seasonalmove))
-cat("\n")
-cat('WAIC: ')
-cat('\n')
-cat(ssf.Ag.seasonalmove$waic$waic)
-cat("\n")
-cat('DIC: ')
-cat('\n')
-cat(ssf.Ag.seasonalmove$dic$dic)
-cat("\n")
-cat('Marginal Likelihood: ')
-cat('\n')
-cat(ssf.Ag.seasonalmove$mlik[2,1])
-cat("\n")
-cat("\n")
 
 
 sink()

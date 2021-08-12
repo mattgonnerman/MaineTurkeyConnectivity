@@ -10,7 +10,7 @@ lapply(c("dplyr", "raster", "sf", "lubridate", "units"), require, character.only
 ### User-Defined variables used for simulations or setup
 N.simturk <- 10 #The number of simulations PER STARTING POINTS
 R <- 250 #Perception Distance, how far away will turkey still be able to consider a patch
-
+N.steps.max <- 500 #15 steps * number of days
 
 ### Load/Setup Start and End Locations
 startlocs <- st_read("./GIS/Disperser Start.shp")
@@ -52,28 +52,67 @@ sim.turkey <- do.call(rbind.data.frame, sim.turkey.list) %>%
   mutate(rho = runif(N.simturk*length(sim.turkey.list), 0.1, 5),
          k = runif(N.simturk*length(sim.turkey.list), 0.1, 4),
          theta = 2,
-         tau = runif(N.simturk*length(sim.turkey.list), 0.1, 3.5))
+         tau = runif(N.simturk*length(sim.turkey.list), 0.1, 3.5)) %>% 
+  rename(Long = StartX, Lat = StartY) %>% 
+  mutate(Step = 1)
 
 move.sim <- list()
 for(i in 1:nrow(sim.turkey)){
-  move.sim[[i]] <- sim.turkey[i,] %>% rename(Long = StartX, Lat = StartY) %>% mutate(Step = 1)
+  move.sim[[i]] <- sim.disperse(sim.turkey[i,], sim.world, sim.world)
 }
 
-### Simulate Movement
+### Simulate Spring Seasonal Movement Track for 1 bird
 sim.disperse <- function(startpoint.df, rasterday, rasterroost){
+  dec.output <- data.frame(ID = 1,
+                           CellID = NA, 
+                           HS = NA,
+                           D = NA,
+                           x = startpoint.df$Long[1],
+                           y = startpoint.df$Lat[1],
+                           A = NA, 
+                           TurnA = runif(1, 0, 180),
+                           W = NA)
+  output.df <- cbind(startpoint.df, dec.output)
   
+  for(i in 1:N.steps.max){
+    if(i %% 15 == 0){
+      step.decision <- sim.decision(output.df[i,], rasterroost, output.df$TurnA[i])
+      output.df[i+1,] <- cbind(output.df[i,1:11], step.decision) %>% mutate(Step = Step +1)
+      
+    }else{
+      step.decision <- sim.decision(output.df[i,], rasterday, output.df$TurnA[i])
+      output.df[i+1,] <- cbind(output.df[i,1:11], step.decision) %>% mutate(Step = Step +1)
+    }
+  }
+  
+
+  return(output.df)
 }
+
+
+
+#### TEST CODE ####
+
+test <- sim.disperse(move.sim[[1]], sim.world, sim.world)
+test.line <-  st_linestring(as.matrix(test[,c("x", "y")]))
+plot(test.line)
+move.sim[[1]][1,c("Long", "Lat")]
+
+
+
+#####################################################################
+
 
 
 ### Function to simulate 1 decision for moving from one location to another on given raster, weighted
 sim.decision <- function(location, raster, prev.angle){
   
-  options <- as.data.frame(extract(raster, location[1,3:4], buffer = R, cellnumbers = T, df = T)) %>%
+  options <- as.data.frame(extract(raster, location[1,c("Long", "Lat")], buffer = R, cellnumbers = T, df = T)) %>%
     rename(HS = layer, CellID = cells)
-  D.raster <- raster::distanceFromPoints(rasterFromCells(raster, options$CellID), location[1,3:4])
-  options$D <- as.data.frame(extract(D.raster, location[1,3:4], buffer = R, cellnumbers = T, df = T))[,3]
+  D.raster <- raster::distanceFromPoints(rasterFromCells(raster, options$CellID), location[1,c("Long", "Lat")])
+  options$D <- as.data.frame(extract(D.raster, location[1,c("Long", "Lat")], buffer = R, cellnumbers = T, df = T))[,3]
   options <- cbind(options, xyFromCell(raster, cell = options$CellID)) %>%
-    mutate(A = geosphere::bearing(sp::spTransform(sp::SpatialPoints(coords = location[1,3:4], proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs ")),
+    mutate(A = geosphere::bearing(sp::spTransform(sp::SpatialPoints(coords = location[1,c("Long", "Lat")], proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs ")),
                                   sp::spTransform(sp::SpatialPoints(coords = matrix(c(x,y), ncol =2), proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs ")))) %>%
     mutate(A = ifelse(A < 0, 360 + A, A),
            TurnA = 180 - abs(abs(A - prev.angle) - 180)) %>%
@@ -90,7 +129,10 @@ sim.decision <- function(location, raster, prev.angle){
 cell.selection.w <- function(H, D, alpha, rho, k, theta, tau){
   sigma <- 1/tau
   sigma2 <- sigma^2
-  w <- H^exp(rho - 1) * 1/(gamma(k) * (theta^k)) * D^(k-1) * exp(-D/theta) * 1/((2*pi*sigma2)) * exp(-(acos(alpha)^2)/(2*sigma2))
+  w <- H^exp(rho - 1) * 1/(gamma(k) * (theta^k)) * D^(k-1) * exp(-D/theta) * 1/((2*pi*sigma2)) * exp(-(cos(alpha)^2)/(2*sigma2))
   return(w)
 }
 
+
+### Testing Code
+system.time(sim.decision(move.sim[[1]], sim.world, 50))
