@@ -10,7 +10,7 @@ lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, c
 ### User-Defined variables used for simulations or setup
 N.simturk <- 10 #The number of simulations PER STARTING POINTS
 R <- 250 #Perception Distance, how far away will turkey still be able to consider a patch
-N.steps.max <- 10 #15 steps * number of days
+N.steps.max <- 500 #15 steps * number of days
 
 ### Load/Setup Start and End Locations
 startlocs <- st_read("./GIS/Disperser Start.shp")
@@ -67,17 +67,17 @@ sim.disperse <- function(startpoint.df, rasterday, rasterroost){
                            x = startpoint.df$Long[1],
                            y = startpoint.df$Lat[1],
                            A = NA, 
-                           TurnA = runif(1, 0, 180),
+                           TurnA = runif(1, -pi, pi),
                            W = NA)
   output.df <- cbind(startpoint.df, dec.output)
   
   for(i in 1:N.steps.max){
     if(i %% 15 == 0){
-      step.decision <- sim.decision(output.df[i,], rasterroost, output.df$TurnA[i])
+      step.decision <- sim.decision(output.df[i,], rasterroost, 180*output.df$TurnA[i]/pi)
       output.df[i+1,] <- cbind(output.df[i,1:12], step.decision) %>% mutate(Step = Step +1)
       
     }else{
-      step.decision <- sim.decision(output.df[i,], rasterday, output.df$TurnA[i])
+      step.decision <- sim.decision(output.df[i,], rasterday, 180*output.df$TurnA[i]/pi)
       output.df[i+1,] <- cbind(output.df[i,1:12], step.decision) %>% mutate(Step = Step +1)
     }
   }
@@ -89,12 +89,12 @@ sim.disperse <- function(startpoint.df, rasterday, rasterroost){
 ### Function to simulate 1 decision for moving from one location to another on given raster, weighted
 sim.decision <- function(location, raster, prev.angle){
   
-  options <- as.data.frame(extract(raster, location[1,c("Long", "Lat")], buffer = R, cellnumbers = T, df = T)) %>%
+  options <- as.data.frame(extract(raster, location[,c("x", "y")], buffer = R, cellnumbers = T, df = T)) %>%
     rename(HS = layer, CellID = cells)
-  D.raster <- raster::distanceFromPoints(rasterFromCells(raster, options$CellID), location[1,c("Long", "Lat")])
-  options$D <- as.data.frame(extract(D.raster, location[1,c("Long", "Lat")], buffer = R, cellnumbers = T, df = T))[,3]
+  D.raster <- raster::distanceFromPoints(rasterFromCells(raster, options$CellID), location[,c("x", "y")])
+  options$D <- as.data.frame(extract(D.raster, location[1,c("x", "y")], buffer = R, cellnumbers = T, df = T))[,3]
   options <- cbind(options, xyFromCell(raster, cell = options$CellID)) %>%
-    mutate(A = geosphere::bearing(sp::spTransform(sp::SpatialPoints(coords = location[1,c("Long", "Lat")], proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs ")),
+    mutate(A = geosphere::bearing(sp::spTransform(sp::SpatialPoints(coords = location[,c("x", "y")], proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs ")),
                                   sp::spTransform(sp::SpatialPoints(coords = matrix(c(x,y), ncol =2), proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs ")))) %>%
     mutate(A = ifelse(A < 0, 360 + A, A),
            TurnA = 180 - abs(abs(A - prev.angle) - 180)) %>%
@@ -114,6 +114,9 @@ cell.selection.w <- function(H, D, TA, p, k, theta, mu, rho){
   S <- dgamma(D, k, 1/theta)
   TnA <- dwrpcauchy(TA, mu, rho)
   w <- HS * S * TnA
+  
+  w <- ifelse(is.infinite(w), 0, w)
+  
   return(w)
 }
 
@@ -131,7 +134,11 @@ move.sim <- list()
 for(i in 1){
   move.sim[[i]] <- sim.disperse(sim.turkey[i,], sim.world, sim.world)
 }
+test.line <-  st_linestring(as.matrix(move.sim[[1]][,c("x", "y")]))
+plot(test.line)
 
+
+move.sim[[1]][1,c("Long", "Lat")]
 location <- sim.turkey[1,]
 raster <- sim.world
 prev.angle <- 100
@@ -139,9 +146,7 @@ prev.angle <- 100
 sim.decision(location, raster, prev.angle)
 
 test <- sim.disperse(sim.turkey[1,], sim.world, sim.world)
-test.line <-  st_linestring(as.matrix(test[,c("x", "y")]))
-plot(test.line)
-move.sim[[1]][1,c("Long", "Lat")]
+
 
 move.sim[[1]][1,]
 

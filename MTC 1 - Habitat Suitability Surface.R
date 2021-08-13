@@ -2,131 +2,131 @@
 # Load Packages
 lapply(c("dplyr", "ggplot2", "move", "sf", "lubridate"), require, character.only = TRUE)
 
-### Load Dispersal Movement Tracks from Movebanks ###
-login <- movebankLogin(username = "matthew.gonnerman", password="26qPDLY9YN")
-
-
-#################################################################################################
-### Download Used Locations for Seasonal Movements
-# Load df with dispersal timestamps
-# Start time is when hen began longer steps and left her wintering home range 
-# End time is when hen returned to localized movements in nesting range
-movement.times <- read.csv("Spring Movement Timestamps.csv") %>%
-  mutate(Start = gsub("[^0-9]", "", Start)) %>%
-  mutate(End = gsub("[^0-9]", "", End)) %>%
-  filter(WNSame == "N") #Filter birds that had overlapping nesting and wintering ranges
-
-for(i in 1:nrow(movement.times)){
-  animalname <- as.character(movement.times$BirdID[i])
-  timestart <- movement.times$Start[i]
-  timeend <- movement.times$End[i]
-  
-  turkeygps <- getMovebankData(study = "Eastern Wild Turkey, Gonnerman, Maine", 
-                               login = login,
-                               animal = animalname,
-                               timestamp_start = timestart,
-                               timestamp_end = timeend)
-  full_ind <- turkeygps@data %>%  
-    mutate(BirdID = animalname) %>%
-    mutate(timestamp = with_tz(timestamp, tzone = "America/New_York"))
-  
-  if(i == 1){
-    movement.points <- full_ind
-    }else{
-      movement.points <- rbind(movement.points, full_ind)
-  }
-}
-movement.points1 <- movement.points %>%
-  dplyr::select(BirdID, location_lat, location_long, timestamp) 
-write.csv(movement.points1, "GPS Seasonal - Used.csv", row.names = F) #All points 
-
-
-
-##############################################################################################
-### Create Available Points from Used Locations
-# https://terpconnect.umd.edu/~egurarie/teaching/SpatialModelling_AKTWS2018/6_RSF_SSF.html#5_ssf_with_multiple_animals
-pcks <- list("sp", "sf", "dplyr", "raster", "rgdal", "lubridate", "amt")
-sapply(pcks, require, char = TRUE)
-
-#Load used points
-seasonalmove.used <- read.csv("GPS Seasonal - Used.csv") %>%
-  mutate(timestamp = as.POSIXct(timestamp, format = "%Y-%m-%d %H:%M:%OS", tz = "UTC")) %>%
-  rename(Lat = location_lat, Long = location_long) %>%
-  mutate(ID = paste(BirdID, year(timestamp), sep = "_"))
-
-#Save them as a shapefile for easier viewing later
-usedlocations.sf <- st_as_sf(seasonalmove.used,
-                             coords = c("Long", "Lat"))
-st_write(usedlocations.sf, ".", layer = "usedlocations", driver = "ESRI Shapefile", delete_layer = T)
-
-# Generate step specific available points
-nested.full <- seasonalmove.used %>%
-  nest(-ID) %>%
-  mutate(track = map(data, ~ mk_track(., Long, Lat, timestamp, BirdID, crs= CRS(projection(turkeygps)))))
-
-full.true.steps <- map(nested.full$track, steps, keep_cols = 'end')
-full.random.steps <- map(full.true.steps, random_steps, n=50, include_observed = T)
-full.steps <- bind_rows(full.random.steps, .id="ID")
-AllPoints.ssf <- as.data.frame(full.steps) %>%
-  dplyr::select(-dt_) %>%
-  mutate(Year = year(t1_)) %>%
-  group_by(BirdID, Year, step_id_, case_) %>%
-  slice(1:20) %>%
-  ungroup() %>%
-  arrange(BirdID, t1_, case_)
-
-write.csv(AllPoints.ssf, "GPS Seasonal - SSF points.csv", row.names = F) #All points 
-
-#Save them as a shapefile for easier viewing later
-alllocations.sff <- st_as_sf(AllPoints.ssf,
-                             coords = c("x2_", "y2_"))
-st_write(alllocations.sff, ".", layer = "SSF All points", driver = "ESRI Shapefile", delete_layer = T)
-
-
-
-################################################################################################
-### EXTRACT VALUES
-pcks <- list("sp", "sf", "dplyr", "raster", "rgdal", "lubridate", "amt")
-sapply(pcks, require, char = TRUE)
-### Merge Locations with Landcover Covariates (Rasters were prepared in ArcGIS)
-## Limited to Statewide Datasets
-# Distance to Roads
-DtR.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/D2Road_30m.tif")
-# Distance to Forest Edge - LiDAR
-DtFE.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/D2Edge_30m.tif")
-# Slope - DEM
-Slope.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/ME_Slope_30m.tif")
-# Agriculture - NLCD
-Ag.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/Ag_30m_bin.tif")
-# Developed - NLCD
-Dev.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/Dev_30m_bin.tif")
-#Forest - NLCD
-Forest.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/Forest_30m_bin.tif")
-#Wetlands - Maine GIS Catalog
-Wetland.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/Wetland_30m.tif")
-# Streams/Rivers - NLCD
-Water.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/Water_30m_bin.tif")
-
-
-#Extract Spatial Covariates
-alllocations.sff <- st_read("SSF All points.shp") %>% 
-  st_set_crs("+proj=longlat +datum=WGS84") %>%
-  st_transform(projection(Dev.rast))
-
-alllocations.sff$DtR.cov <- raster::extract(DtR.rast, alllocations.sff)
-alllocations.sff$DtFE.cov <- raster::extract(DtFE.rast, alllocations.sff)
-alllocations.sff$Slope.cov <- raster::extract(Slope.rast, alllocations.sff)
-alllocations.sff$Ag.cov <- raster::extract(Ag.rast, alllocations.sff)
-alllocations.sff$Dev.cov <- raster::extract(Dev.rast, alllocations.sff)
-alllocations.sff$Wetland.cov <- raster::extract(Wetland.rast, alllocations.sff)
-
-### Convert to final dataframe for SSF and clean up
-AllPoints.ssf.df <- alllocations.sff %>%
-  mutate(ConditionID = paste(BirdID, Year, step_d_, sep="_"))
-st_geometry(AllPoints.ssf.df) <- NULL
-write.csv(AllPoints.ssf.df, "SSF_SeasonalMove_inputs.csv", row.names = F)
-
-
+# ### Load Dispersal Movement Tracks from Movebanks ###
+# login <- movebankLogin(username = "matthew.gonnerman", password="26qPDLY9YN")
+# 
+# 
+# #################################################################################################
+# ### Download Used Locations for Seasonal Movements
+# # Load df with dispersal timestamps
+# # Start time is when hen began longer steps and left her wintering home range 
+# # End time is when hen returned to localized movements in nesting range
+# movement.times <- read.csv("Spring Movement Timestamps.csv") %>%
+#   mutate(Start = gsub("[^0-9]", "", Start)) %>%
+#   mutate(End = gsub("[^0-9]", "", End)) %>%
+#   filter(WNSame == "N") #Filter birds that had overlapping nesting and wintering ranges
+# 
+# for(i in 1:nrow(movement.times)){
+#   animalname <- as.character(movement.times$BirdID[i])
+#   timestart <- movement.times$Start[i]
+#   timeend <- movement.times$End[i]
+#   
+#   turkeygps <- getMovebankData(study = "Eastern Wild Turkey, Gonnerman, Maine", 
+#                                login = login,
+#                                animal = animalname,
+#                                timestamp_start = timestart,
+#                                timestamp_end = timeend)
+#   full_ind <- turkeygps@data %>%  
+#     mutate(BirdID = animalname) %>%
+#     mutate(timestamp = with_tz(timestamp, tzone = "America/New_York"))
+#   
+#   if(i == 1){
+#     movement.points <- full_ind
+#     }else{
+#       movement.points <- rbind(movement.points, full_ind)
+#   }
+# }
+# movement.points1 <- movement.points %>%
+#   dplyr::select(BirdID, location_lat, location_long, timestamp) 
+# write.csv(movement.points1, "GPS Seasonal - Used.csv", row.names = F) #All points 
+# 
+# 
+# 
+# ##############################################################################################
+# ### Create Available Points from Used Locations
+# # https://terpconnect.umd.edu/~egurarie/teaching/SpatialModelling_AKTWS2018/6_RSF_SSF.html#5_ssf_with_multiple_animals
+# pcks <- list("sp", "sf", "dplyr", "raster", "rgdal", "lubridate", "amt")
+# sapply(pcks, require, char = TRUE)
+# 
+# #Load used points
+# seasonalmove.used <- read.csv("GPS Seasonal - Used.csv") %>%
+#   mutate(timestamp = as.POSIXct(timestamp, format = "%Y-%m-%d %H:%M:%OS", tz = "UTC")) %>%
+#   rename(Lat = location_lat, Long = location_long) %>%
+#   mutate(ID = paste(BirdID, year(timestamp), sep = "_"))
+# 
+# #Save them as a shapefile for easier viewing later
+# usedlocations.sf <- st_as_sf(seasonalmove.used,
+#                              coords = c("Long", "Lat"))
+# st_write(usedlocations.sf, ".", layer = "usedlocations", driver = "ESRI Shapefile", delete_layer = T)
+# 
+# # Generate step specific available points
+# nested.full <- seasonalmove.used %>%
+#   nest(-ID) %>%
+#   mutate(track = map(data, ~ mk_track(., Long, Lat, timestamp, BirdID, crs= CRS(projection(turkeygps)))))
+# 
+# full.true.steps <- map(nested.full$track, steps, keep_cols = 'end')
+# full.random.steps <- map(full.true.steps, random_steps, n=50, include_observed = T)
+# full.steps <- bind_rows(full.random.steps, .id="ID")
+# AllPoints.ssf <- as.data.frame(full.steps) %>%
+#   dplyr::select(-dt_) %>%
+#   mutate(Year = year(t1_)) %>%
+#   group_by(BirdID, Year, step_id_, case_) %>%
+#   slice(1:20) %>%
+#   ungroup() %>%
+#   arrange(BirdID, t1_, case_)
+# 
+# write.csv(AllPoints.ssf, "GPS Seasonal - SSF points.csv", row.names = F) #All points 
+# 
+# #Save them as a shapefile for easier viewing later
+# alllocations.sff <- st_as_sf(AllPoints.ssf,
+#                              coords = c("x2_", "y2_"))
+# st_write(alllocations.sff, ".", layer = "SSF All points", driver = "ESRI Shapefile", delete_layer = T)
+# 
+# 
+# 
+# ################################################################################################
+# ### EXTRACT VALUES
+# pcks <- list("sp", "sf", "dplyr", "raster", "rgdal", "lubridate", "amt")
+# sapply(pcks, require, char = TRUE)
+# ### Merge Locations with Landcover Covariates (Rasters were prepared in ArcGIS)
+# ## Limited to Statewide Datasets
+# # Distance to Roads
+# DtR.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/D2Road_30m.tif")
+# # Distance to Forest Edge - LiDAR
+# DtFE.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/D2Edge_30m.tif")
+# # Slope - DEM
+# Slope.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/ME_Slope_30m.tif")
+# # Agriculture - NLCD
+# Ag.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/Ag_30m_bin.tif")
+# # Developed - NLCD
+# Dev.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/Dev_30m_bin.tif")
+# #Forest - NLCD
+# Forest.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/Forest_30m_bin.tif")
+# #Wetlands - Maine GIS Catalog
+# Wetland.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/Wetland_30m.tif")
+# # Streams/Rivers - NLCD
+# Water.rast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/Water_30m_bin.tif")
+# 
+# 
+# #Extract Spatial Covariates
+# alllocations.sff <- st_read("SSF All points.shp") %>% 
+#   st_set_crs("+proj=longlat +datum=WGS84") %>%
+#   st_transform(projection(Dev.rast))
+# 
+# alllocations.sff$DtR.cov <- raster::extract(DtR.rast, alllocations.sff)
+# alllocations.sff$DtFE.cov <- raster::extract(DtFE.rast, alllocations.sff)
+# alllocations.sff$Slope.cov <- raster::extract(Slope.rast, alllocations.sff)
+# alllocations.sff$Ag.cov <- raster::extract(Ag.rast, alllocations.sff)
+# alllocations.sff$Dev.cov <- raster::extract(Dev.rast, alllocations.sff)
+# alllocations.sff$Wetland.cov <- raster::extract(Wetland.rast, alllocations.sff)
+# 
+# ### Convert to final dataframe for SSF and clean up
+# AllPoints.ssf.df <- alllocations.sff %>%
+#   mutate(ConditionID = paste(BirdID, Year, step_d_, sep="_"))
+# st_geometry(AllPoints.ssf.df) <- NULL
+# write.csv(AllPoints.ssf.df, "SSF_SeasonalMove_inputs.csv", row.names = F)
+# 
+# 
 
 ####################################################################################################
 ### INLA ###
@@ -427,6 +427,5 @@ cat("\n")
 
 sink()
 
-### WAIC Table
 
 
