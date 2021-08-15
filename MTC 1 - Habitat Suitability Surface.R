@@ -428,4 +428,36 @@ cat("\n")
 sink()
 
 
+save(ssf.Slope.seasonalmove, ssf.Wetland.seasonalmove, ssf.Ag.seasonalmove, ssf.Dev.seasonalmove,
+     ssf.DtR.seasonalmove, ssf.DtFE.seasonalmove, ssf.null.seasonalmove, file = "SSFResults.RData")
+load("SSFResults.RData")
 
+
+### Global Model
+globaldata <- AllPoints.ssf.df
+globaldata$BirdID1 = globaldata$BirdID2 = globaldata$BirdID3 = globaldata$BirdID4 = globaldata$BirdID5 = globaldata$BirdID6 = globaldata$BirdID
+formula.random <- case_ ~  -1 + Ag.cov + Dev.cov + Wetland.cov + Slope.cov + DtR.cov + DtFE.cov +#Fixed effects
+  sl_ + #step length
+  f(ConditionID, model = "iid", hyper = list(theta = list(initial = log(1e-6), fixed = T))) + #Conditional
+  f(BirdID1,Ag.cov,values=1:niid,model="iid", #Random Slope
+    hyper=list(theta=list(initial=log(1),fixed=F,prior="pc.prec",param=c(3,0.05)))) +
+  f(BirdID2,Dev.cov,values=1:niid,model="iid", #Random Slope
+    hyper=list(theta=list(initial=log(1),fixed=F,prior="pc.prec",param=c(3,0.05)))) +
+  f(BirdID3,Wetland.cov,values=1:niid,model="iid", #Random Slope
+    hyper=list(theta=list(initial=log(1),fixed=F,prior="pc.prec",param=c(3,0.05)))) +
+  f(BirdID4,Slope.cov,values=1:niid,model="iid", #Random Slope
+    hyper=list(theta=list(initial=log(1),fixed=F,prior="pc.prec",param=c(3,0.05)))) +
+  f(BirdID5,DtR.cov,values=1:niid,model="iid", #Random Slope
+    hyper=list(theta=list(initial=log(1),fixed=F,prior="pc.prec",param=c(3,0.05)))) +
+  f(BirdID6,DtFE.cov,values=1:niid,model="iid", #Random Slope
+    hyper=list(theta=list(initial=log(1),fixed=F,prior="pc.prec",param=c(3,0.05)))) 
+
+ssf.GLOBAL.seasonalmove <- inla(formula.random, family ="Poisson", data=globaldata, 
+                               control.fixed = list(
+                                 mean = mean.beta,
+                                 prec = list(default = prec.beta)),
+                               control.compute = list(mlik = TRUE, dic = TRUE, waic = TRUE))
+write.csv(ssf.GLOBAL.seasonalmove$summary.fixed, "Global SSF Coefficients.csv")
+ssf.GLOBAL.seasonalmove$summary.hyperpar
+ssf.GLOBAL.seasonalmove$waic$waic
+save(ssf.GLOBAL.seasonalmove, file = "SSF Global Model.RData")

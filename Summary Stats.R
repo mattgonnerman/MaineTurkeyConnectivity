@@ -1,3 +1,4 @@
+require(dplyr)
 ### Define Priors for weighting equation
 
 AllPoints.ssf.df <- read.csv("SSF_SeasonalMove_inputs.csv") %>%
@@ -14,8 +15,13 @@ summary(pointsperday$Total)
 #Step Length Summary
 summary(AllPoints.ssf.df$sl_)
 
+#Min Observed distance to road/forest
 
 
+max(AllPoints.ssf.df$DtR.cov)
+summary(AllPoints.ssf.df$DtR.cov)
+max(AllPoints.ssf.df$DtFE.cov)
+summary(AllPoints.ssf.df$DtFE.cov)
 
 
 #Define Step and Turning Angle Distributions

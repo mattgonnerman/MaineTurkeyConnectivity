@@ -11,6 +11,7 @@ lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, c
 N.simturk <- 10 #The number of simulations PER STARTING POINTS
 R <- 250 #Perception Distance, how far away will turkey still be able to consider a patch
 N.steps.max <- 500 #15 steps * number of days
+end.dist <- 1000 #Distance simulation needs to be to end point to conclude individual simulation
 
 ### Load/Setup Start and End Locations
 startlocs <- st_read("./GIS/Disperser Start.shp")
@@ -33,9 +34,10 @@ obs.paths <- merge(startlocs, endlocs, by = c("BirdID", "ID")) %>%
 slocs <- st_read("./GIS/Disperser Start.shp")
 elocs <- st_read("./GIS/Disperser End.shp")
 bothlocs <- st_transform(rbind(slocs, elocs), 32619)
-sim.world <- raster(ext = extend(extent(bothlocs), 5000), res = 30)
-sim.world <- setValues(sim.world, runif(length(sim.world), 0, 1))
-
+HS_day <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/HS_Day.tif")
+names(HS_day) <- "layer"
+HS_roost <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/HS_Roost.tif")
+names(HS_roost) <- "layer"
 ### Create Animals and Setup Starting Locations
 sim.turkey.list <- list()
 for(i in 1:nrow(obs.paths)){
@@ -57,98 +59,60 @@ sim.turkey <- do.call(rbind.data.frame, sim.turkey.list) %>%
   rename(Long = StartX, Lat = StartY) %>% 
   mutate(Step = 1)
 
-
-### Simulate Spring Seasonal Movement Track for 1 bird
-sim.disperse <- function(startpoint.df, rasterday, rasterroost){
-  dec.output <- data.frame(ID = 1,
-                           CellID = NA, 
-                           HS = NA,
-                           D = NA,
-                           x = startpoint.df$Long[1],
-                           y = startpoint.df$Lat[1],
-                           A = NA, 
-                           TurnA = runif(1, -pi, pi),
-                           W = NA)
-  output.df <- cbind(startpoint.df, dec.output)
-  
-  for(i in 1:N.steps.max){
-    if(i %% 15 == 0){
-      step.decision <- sim.decision(output.df[i,], rasterroost, 180*output.df$TurnA[i]/pi)
-      output.df[i+1,] <- cbind(output.df[i,1:12], step.decision) %>% mutate(Step = Step +1)
-      
-    }else{
-      step.decision <- sim.decision(output.df[i,], rasterday, 180*output.df$TurnA[i]/pi)
-      output.df[i+1,] <- cbind(output.df[i,1:12], step.decision) %>% mutate(Step = Step +1)
-    }
-  }
-  
-
-  return(output.df)
-}
-
-### Function to simulate 1 decision for moving from one location to another on given raster, weighted
-sim.decision <- function(location, raster, prev.angle){
-  
-  options <- as.data.frame(extract(raster, location[,c("x", "y")], buffer = R, cellnumbers = T, df = T)) %>%
-    rename(HS = layer, CellID = cells)
-  D.raster <- raster::distanceFromPoints(rasterFromCells(raster, options$CellID), location[,c("x", "y")])
-  options$D <- as.data.frame(extract(D.raster, location[1,c("x", "y")], buffer = R, cellnumbers = T, df = T))[,3]
-  options <- cbind(options, xyFromCell(raster, cell = options$CellID)) %>%
-    mutate(A = geosphere::bearing(sp::spTransform(sp::SpatialPoints(coords = location[,c("x", "y")], proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs ")),
-                                  sp::spTransform(sp::SpatialPoints(coords = matrix(c(x,y), ncol =2), proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs ")))) %>%
-    mutate(A = ifelse(A < 0, 360 + A, A),
-           TurnA = 180 - abs(abs(A - prev.angle) - 180)) %>%
-    mutate(TurnA = pi* TurnA/180) %>%
-    mutate(W = cell.selection.w(HS, D, A, location$p[1], location$k[1], 1/location$theta[1], location$mu[1], location$rho[1]))
-    # mutate(W = runif(nrow(options), 0, 1))
-  decision <- sample(1:nrow(options), 1, prob = options$W)
-  
-  return(options[decision,])
-  
-}
-
-
-### Function to calculate the weight of a raster cell for sim.decision
-cell.selection.w <- function(H, D, TA, p, k, theta, mu, rho){
-  HS <- H^exp(p - 1) 
-  S <- dgamma(D, k, 1/theta)
-  TnA <- dwrpcauchy(TA, mu, rho)
-  w <- HS * S * TnA
-  
-  w <- ifelse(is.infinite(w), 0, w)
-  
-  return(w)
-}
-
-
-
+source("./MTC 2a - Simulation Functions.R")
 #### TEST CODE ####
 startpoint.df <- sim.turkey[1,]
 rasterday <- sim.world
 rasterroost<- sim.world
 
-
-
-move.sim <- list()
-# for(i in 1:nrow(sim.turkey)){
-for(i in 1){
-  move.sim[[i]] <- sim.disperse(sim.turkey[i,], sim.world, sim.world)
-}
-test.line <-  st_linestring(as.matrix(move.sim[[1]][,c("x", "y")]))
-plot(test.line)
-
-
-move.sim[[1]][1,c("Long", "Lat")]
-location <- sim.turkey[1,]
-raster <- sim.world
+dec.output <- data.frame(ID = 1,
+                         CellID = NA, 
+                         HS = NA,
+                         D = NA,
+                         x = sim.turkey[1,]$Long[1],
+                         y = sim.turkey[1,]$Lat[1],
+                         A = NA, 
+                         TurnA = runif(1, -pi, pi),
+                         W = NA)
+location <- cbind(sim.turkey[i,], dec.output) 
+raster <- HS_day
 prev.angle <- 100
 
 sim.decision(location, raster, prev.angle)
 
-test <- sim.disperse(sim.turkey[1,], sim.world, sim.world)
+test <- sim.disperse(sim.turkey[1,], HS_day, HS_roost)
+test.line <-  st_linestring(as.matrix(test[,c("x", "y")]))
+plot(test.line)
 
-
-move.sim[[1]][1,]
-
+system.time(sim.disperse(sim.turkey[1,], HS_day, HS_roost))
 
 #####################################################################
+
+
+####################
+### RUN THE CODE ###
+##### PARALLEL #####
+####################
+### Load Packages
+lapply(c("doParallel", "foreach"), require, character.only = TRUE)
+
+# Create a parallel cluster
+parallel::detectCores()
+n.cores <- parallel::detectCores() - 1
+my.cluster <- parallel::makeCluster(
+  n.cores, 
+  type = "PSOCK"
+)
+# Register cluster to be used by %dopar%
+doParallel::registerDoParallel(cl = my.cluster)
+
+
+sim.output <- list()
+# foreach(simbird = 1:nrow(sim.turkey)) %dopar% {
+system.time(
+sim.output <- foreach(simbird = 1:20, .combine =T, .packages = c("dplyr", "raster", "sf", "lubridate", "units", "CircStats")) %dopar% {
+  source("./MTC 2a - Simulation Functions.R")
+  sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
+}
+)
+parallel::stopCluster(cl = my.cluster)
