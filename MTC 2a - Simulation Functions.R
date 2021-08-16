@@ -13,16 +13,16 @@ sim.disperse <- function(startpoint.df, rasterday, rasterroost){
   
   for(i in 1:N.steps.max){
     if(i %% 15 == 0){
-      step.decision <- sim.decision(output.df[i,], rasterroost, 180*output.df$TurnA[i]/pi)
-      output.df[i+1,] <- cbind(output.df[i,1:12], step.decision) %>% mutate(Step = Step +1)
+      step.decision <- sim.decision(output.df[i,], rasterroost, 180*output.df$TurnA[i]/pi, i)
+      output.df[i+1,] <- cbind(output.df[i,1:13], step.decision) %>% mutate(Step = Step +1)
       output.df$D2End[i+1] <- abs(pointDistance(c(output.df$x[i+1],output.df$y[i+1]), 
                                                 c(output.df$EndX[i+1], output.df$EndY[i+1]), lonlat = F))
       if(output.df$D2End[i+1] < end.dist){
         break()
       }
     }else{
-      step.decision <- sim.decision(output.df[i,], rasterday, 180*output.df$TurnA[i]/pi)
-      output.df[i+1,] <- cbind(output.df[i,1:12], step.decision) %>% mutate(Step = Step +1)
+      step.decision <- sim.decision(output.df[i,], rasterday, 180*output.df$TurnA[i]/pi, i)
+      output.df[i+1,] <- cbind(output.df[i,1:13], step.decision) %>% mutate(Step = Step +1)
       output.df$D2End[i+1] <- abs(pointDistance(c(output.df$x[i+1],output.df$y[i+1]), 
                                                 c(output.df$EndX[i+1], output.df$EndY[i+1]), lonlat = F))
       if(output.df$D2End[i+1] < end.dist){
@@ -36,12 +36,12 @@ sim.disperse <- function(startpoint.df, rasterday, rasterroost){
 }
 
 ### Function to simulate 1 decision for moving from one location to another on given raster, weighted
-sim.decision <- function(location, raster, prev.angle){
+sim.decision <- function(location, raster, prev.angle, i){
   
-  options <- as.data.frame(extract(raster, location[,c("x", "y")], buffer = R, cellnumbers = T, df = T)) %>%
+  options <- as.data.frame(extract(raster, location[,c("x", "y")], buffer = location$R[1], cellnumbers = T, df = T)) %>%
     rename(HS = layer, CellID = cells)
   D.raster <- raster::distanceFromPoints(rasterFromCells(raster, options$CellID), location[,c("x", "y")])
-  options$D <- as.data.frame(extract(D.raster, location[1,c("x", "y")], buffer = R, cellnumbers = T, df = T))[,3]
+  options$D <- as.data.frame(extract(D.raster, location[1,c("x", "y")], buffer = location$R[1], cellnumbers = T, df = T))[,3]
   options <- cbind(options, xyFromCell(raster, cell = options$CellID)) %>%
     mutate(A = geosphere::bearing(sp::spTransform(sp::SpatialPoints(coords = location[,c("x", "y")], proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs ")),
                                   sp::spTransform(sp::SpatialPoints(coords = matrix(c(x,y), ncol =2), proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs ")))) %>%

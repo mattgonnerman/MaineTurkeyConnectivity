@@ -9,7 +9,7 @@ lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, c
 
 ### User-Defined variables used for simulations or setup
 N.simturk <- 100 #The number of simulations PER STARTING POINTS
-R <- 250 #Perception Distance, how far away will turkey still be able to consider a patch
+# R <- 250 #Perception Distance, how far away will turkey still be able to consider a patch
 N.steps.max <- 500 #15 steps * number of days
 end.dist <- 1000 #Distance simulation needs to be to end point to conclude individual simulation
 
@@ -51,7 +51,8 @@ for(i in 1:nrow(obs.paths)){
 
 #DataFrame with 
 sim.turkey <- do.call(rbind.data.frame, sim.turkey.list) %>%
-  mutate(p = runif(N.simturk*length(sim.turkey.list), .1, 5),
+  mutate(R = runif(N.simturk*length(sim.turkey.list), 150,450),
+         p = runif(N.simturk*length(sim.turkey.list), .1, 5),
          rho = runif(N.simturk*length(sim.turkey.list), 0.26868487 - (10*0.01281980), 0.26868487 + (10*0.01281980)),
          # mu = runif(N.simturk*length(sim.turkey.list), 0.08464538 - (2*0.04287019), 0.08464538 + (2*0.04287019)),
          mu = rep(0, N.simturk*length(sim.turkey.list)),
@@ -64,29 +65,29 @@ source("./MTC 2a - Simulation Functions.R")
 
 #### TEST CODE ####
 
-# startpoint.df <- sim.turkey[1,]
-# rasterday <- sim.world
-# rasterroost<- sim.world
-# 
-# dec.output <- data.frame(ID = 1,
-#                          CellID = NA, 
-#                          HS = NA,
-#                          D = NA,
-#                          x = sim.turkey[1,]$Long[1],
-#                          y = sim.turkey[1,]$Lat[1],
-#                          A = NA, 
-#                          TurnA = runif(1, -pi, pi),
-#                          W = NA)
-# location <- cbind(sim.turkey[i,], dec.output) 
-# raster <- HS_day
-# prev.angle <- 100
-# 
-# sim.decision(location, raster, prev.angle)
-# 
-# test <- sim.disperse(sim.turkey[1,], HS_day, HS_roost)
-# 
-# 
-# system.time(sim.disperse(sim.turkey[1,], HS_day, HS_roost))
+startpoint.df <- sim.turkey[1,]
+rasterday <- HS_day
+rasterroost<- HS_roost
+
+dec.output <- data.frame(ID = 1,
+                         CellID = NA,
+                         HS = NA,
+                         D = NA,
+                         x = sim.turkey[1,]$Long[1],
+                         y = sim.turkey[1,]$Lat[1],
+                         A = NA,
+                         TurnA = runif(1, -pi, pi),
+                         W = NA)
+location <- cbind(sim.turkey[i,], dec.output)
+raster <- HS_day
+prev.angle <- 100
+
+sim.decision(location, raster, prev.angle)
+
+test <- sim.disperse(sim.turkey[1,], HS_day, HS_roost)
+
+
+system.time(sim.disperse(sim.turkey[1,], HS_day, HS_roost))
 
 #####################################################################
 
@@ -96,7 +97,7 @@ source("./MTC 2a - Simulation Functions.R")
 ##### PARALLEL #####
 ####################
 ### Load Packages
-lapply(c("doParallel", "foreach"), require, character.only = TRUE)
+lapply(c("doParallel", "foreach", "parallel"), require, character.only = TRUE)
 
 # Create a parallel cluster
 parallel::detectCores()
@@ -110,18 +111,45 @@ my.cluster <- parallel::makeCluster(
 doParallel::registerDoParallel(cl = my.cluster)
 
 
-# foreach(simbird = 1:nrow(sim.turkey)) %dopar% {
+# # foreach(simbird = 1:nrow(sim.turkey)) %dopar% {
+# Sys.time()
+# # for(i in 1:nrow(startlocs)){
+# for(i in 15){
+#   sim.output1 <- foreach(simbird = (N.simturk*(i-1)+1):(N.simturk*(i)), .combine = "rbind", .packages = c("dplyr", "raster", "sf", "lubridate", "units", "CircStats")) %dopar% {
+#     source("./MTC 2a - Simulation Functions.R")
+#     sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
+#   }
+#   write.csv(sim.output1, paste("./Simulations/Output_OGID_", i, ".csv", sep = ""))
+# }
+# Sys.time()
+# parallel::stopCluster(cl = my.cluster)
+
+
+
+
+
+
+
+clusterEvalQ(my.cluster, {lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, character.only = TRUE)})
+clusterExport(my.cluster, c("sim.turkey", "N.steps.max", "HS_day", "HS_roost", "end.dist"))
 Sys.time()
-# for(i in 1:nrow(startlocs)){
-for(i in 15){
-  sim.output1 <- foreach(simbird = (N.simturk*(i-1)+1):(N.simturk*(i)), .combine = "rbind", .packages = c("dplyr", "raster", "sf", "lubridate", "units", "CircStats")) %dopar% {
-    source("./MTC 2a - Simulation Functions.R")
-    sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
-  }
-  write.csv(sim.output1, paste("./Simulations/Output_OGID_", i, ".csv", sep = ""))
-}
+system.time(
+  # sim.output2 <- parLapply(cl = my.cluster, X = (N.simturk*(15-1)+1):(N.simturk*(15)),
+  sim.output2 <- parLapply(cl = my.cluster, X = 1:11,
+          function(simbird) {
+            source("./MTC 2a - Simulation Functions.R")
+            sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
+          })
+)
+write.csv(sim.output2, paste("./Simulations/Output_OGID_", 15, ".csv", sep = ""))
+
 Sys.time()
 parallel::stopCluster(cl = my.cluster)
+
+
+
+sim.output1 <- do.call("bind_rows",sim.output2)
+
 
 
 
