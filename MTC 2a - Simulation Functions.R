@@ -49,7 +49,6 @@ sim.decision <- function(location, raster, prev.angle, i){
            TurnA = 180 - abs(abs(A - prev.angle) - 180)) %>%
     mutate(TurnA = pi* TurnA/180) %>%
     mutate(W = cell.selection.w(HS, D, A, location$p[1], location$k[1], 1/location$theta[1], location$mu[1], location$rho[1]))
-  # mutate(W = runif(nrow(options), 0, 1))
   
   if(i %% 15 == 0){ 
     if(identical(options$W, rep(0.1, nrow(options)))){

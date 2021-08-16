@@ -63,64 +63,40 @@ sim.turkey <- do.call(rbind.data.frame, sim.turkey.list) %>%
 
 source("./MTC 2a - Simulation Functions.R")
 
+
+
 #### TEST CODE ####
 
-# startpoint.df <- sim.turkey[1,]
-# rasterday <- HS_day
-# rasterroost<- HS_roost
-# 
-# dec.output <- data.frame(ID = 1,
-#                          CellID = NA,
-#                          HS = NA,
-#                          D = NA,
-#                          x = sim.turkey[1,]$Long[1],
-#                          y = sim.turkey[1,]$Lat[1],
-#                          A = NA,
-#                          TurnA = runif(1, -pi, pi),
-#                          W = NA)
-# location <- cbind(sim.turkey[1,], dec.output)
-# raster <- HS_day
-# prev.angle <- 100
-# 
-# sim.decision(location, raster, prev.angle)
-# 
-# test <- sim.disperse(sim.turkey[1,], HS_day, HS_roost)
-# 
-# sim.lines <- test %>% 
-#   mutate(LineID = paste(OG.ID, Sim.ID, sep = "_")) %>%
-#   st_as_sf(coords = c("x","y")) %>% 
-#   sf::st_set_crs(32619) %>% 
-#   group_by(LineID) %>% 
-#   arrange(Step) %>%
-#   summarize(m = mean(HS, na.omit = T), do_union = F) %>%
-#   st_cast("LINESTRING")
-# 
-# ### Plot on raster
-# #Change Habitat suitability raster to dataframe for use in GGplot
-# 
-# 
-# #create start and end point sf objects
-# start <- test[1, c("x","y")] %>%
-#   st_as_sf(coords = c("x","y")) %>% 
-#   sf::st_set_crs(32619)
-# end <- test[1, c("EndX","EndY")]%>%
-#   st_as_sf(coords = c("EndX","EndY")) %>% 
-#   sf::st_set_crs(32619)
-# # rastext <- st_read("./GIS/Disperser End.shp") %>% st_transform(32619)
-# rastext <-merge(extent(sim.lines), extent(end))
-# HS_df <- as.data.frame(rasterToPoints(crop(HS_day, rastext)))
-# 
-# require(ggplot2)
-# ggplot(data = sim.lines) +
-#   geom_raster(data = HS_df, aes(x = x, y = y, fill = layer)) +
-#   geom_sf(aes(color = LineID), show.legend = F) +
-#   geom_sf(data = start, color = "green", size = 2, shape = 9) +
-#   geom_sf(data = end, color = "red", size = 2, shape = 9) +
-#   theme_classic() +
-#   scale_fill_continuous(type = "viridis")
-# 
-# system.time(sim.disperse(sim.turkey[1,], HS_day, HS_roost))
+test <- sim.disperse(sim.turkey[2,], HS_day, HS_roost)
 
+sim.lines <- test %>%
+  mutate(LineID = paste(OG.ID, Sim.ID, sep = "_")) %>%
+  st_as_sf(coords = c("x","y")) %>%
+  sf::st_set_crs(32619) %>%
+  group_by(LineID) %>%
+  arrange(Step) %>%
+  summarize(m = mean(HS, na.omit = T), do_union = F) %>%
+  st_cast("LINESTRING")
+
+start <- test[1, c("x","y")] %>%
+  st_as_sf(coords = c("x","y")) %>%
+  sf::st_set_crs(32619)
+end <- test[1, c("EndX","EndY")]%>%
+  st_as_sf(coords = c("EndX","EndY")) %>%
+  sf::st_set_crs(32619)
+# rastext <- st_read("./GIS/Disperser End.shp") %>% st_transform(32619)
+rastext <-merge(extent(sim.lines), extent(end))
+HS_df <- as.data.frame(rasterToPoints(crop(HS_day, rastext)))
+
+require(ggplot2)
+ggplot(data = sim.lines) +
+  geom_raster(data = HS_df, aes(x = x, y = y, fill = layer)) +
+  geom_sf(aes(color = LineID), show.legend = F) +
+  geom_sf(data = start, color = "purple", size = 4, shape = 20) +
+  geom_sf(data = end, color = "red", size = 4, shape = 20) +
+  theme_classic() +
+  scale_fill_continuous(type = "viridis")
+ ##################################################
 #####################################################################
 
 
@@ -128,59 +104,65 @@ source("./MTC 2a - Simulation Functions.R")
 ### RUN THE CODE ###
 ##### PARALLEL #####
 ####################
-### Load Packages
 lapply(c("doParallel", "foreach", "parallel"), require, character.only = TRUE)
 
+### dopar Version 
 # Create a parallel cluster
-parallel::detectCores()
-n.cores <- parallel::detectCores() - 1
-# n.cores <- 6
+n.cores <- parallel::detectCores()/2
 my.cluster <- parallel::makeCluster(
   n.cores, 
   type = "PSOCK"
 )
-# Register cluster to be used by %dopar%
 doParallel::registerDoParallel(cl = my.cluster)
 
 
-# # foreach(simbird = 1:nrow(sim.turkey)) %dopar% {
-# Sys.time()
-# # for(i in 1:nrow(startlocs)){
-# for(i in 15){
-#   sim.output1 <- foreach(simbird = (N.simturk*(i-1)+1):(N.simturk*(i)), .combine = "rbind", .packages = c("dplyr", "raster", "sf", "lubridate", "units", "CircStats")) %dopar% {
-#     source("./MTC 2a - Simulation Functions.R")
-#     sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
-#   }
-#   write.csv(sim.output1, paste("./Simulations/Output_OGID_", i, ".csv", sep = ""))
-# }
-# Sys.time()
-# parallel::stopCluster(cl = my.cluster)
+# foreach(simbird = 1:nrow(sim.turkey)) %dopar% {
+Sys.time()
+# for(i in 1:nrow(startlocs)){
+system.time(
+  sim.output3 <- foreach(simbird = 1,
+                         .combine = "rbind",
+                         .packages = c("dplyr", "raster", "sf", "lubridate", "units", "CircStats")) %dopar% {
+                           source("./MTC 2a - Simulation Functions.R")
+                           single.out <- sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
+                           return(single.out)
+                         }
+  # write.csv(sim.output1, paste("./Simulations/Output_OGID_", i, ".csv", sep = ""))
+)
+Sys.time()
+parallel::stopCluster(cl = my.cluster)
 
 
 
 
-
-
-
+### parLapply version
+n.cores <- parallel::detectCores() - 1
+my.cluster <- parallel::makeCluster(
+  n.cores, 
+  type = "PSOCK"
+)
 clusterEvalQ(my.cluster, {lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, character.only = TRUE)})
 clusterExport(my.cluster, c("sim.turkey", "N.steps.max", "HS_day", "HS_roost", "end.dist"))
+
 Sys.time()
 system.time(
   # sim.output2 <- parLapply(cl = my.cluster, X = (N.simturk*(15-1)+1):(N.simturk*(15)),
-  sim.output2 <- parLapply(cl = my.cluster, X = 1:11,
+  sim.output2 <- parLapply(cl = my.cluster, X = 1:n.cores,
           function(simbird) {
             source("./MTC 2a - Simulation Functions.R")
-            sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
+            single.out <- sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
+            return(single.out)
           })
 )
-write.csv(sim.output2, paste("./Simulations/Output_OGID_", 15, ".csv", sep = ""))
+sim.output1 <- do.call("bind_rows",sim.output2)
+# write.csv(sim.output1, paste("./Simulations/Output_OGID_", 15, ".csv", sep = ""))
 
 Sys.time()
 parallel::stopCluster(cl = my.cluster)
 
 
 
-sim.output1 <- do.call("bind_rows",sim.output2)
+
 
 
 
@@ -217,8 +199,8 @@ require(ggplot2)
 ggplot(data = sim.lines) +
   geom_raster(data = HS_df, aes(x = x, y = y, fill = layer)) +
   geom_sf(aes(color = LineID), show.legend = F) +
-  geom_sf(data = start, color = "green", size = 2, shape = 9) +
-  geom_sf(data = end, color = "red", size = 2, shape = 9) +
+  geom_sf(data = start, color = "purple", size = 4, shape = 20) +
+  geom_sf(data = end, color = "red", size = 4, shape = 20) +
   theme_classic() +
   scale_fill_continuous(type = "viridis")
 
