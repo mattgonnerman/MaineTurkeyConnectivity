@@ -52,10 +52,11 @@ for(i in 1:nrow(obs.paths)){
 #DataFrame with 
 sim.turkey <- do.call(rbind.data.frame, sim.turkey.list) %>%
   mutate(p = runif(N.simturk*length(sim.turkey.list), .1, 5),
-         rho = runif(N.simturk*length(sim.turkey.list), 0.26868487 - (2*0.01281980), 0.26868487 + (2*0.01281980)),
-         mu = runif(N.simturk*length(sim.turkey.list), 0.08464538 - (2*0.04287019), 0.08464538 + (2*0.04287019)),
-         k = runif(N.simturk*length(sim.turkey.list), 0.84834637 - (2*1.744392e-02), 0.84834637 + (2*1.744392e-02)),
-         theta = runif(N.simturk*length(sim.turkey.list), 0.00311007 - (2*7.517423e-05), 0.00311007 + (2*7.517423e-05))) %>% 
+         rho = runif(N.simturk*length(sim.turkey.list), 0.26868487 - (10*0.01281980), 0.26868487 + (10*0.01281980)),
+         # mu = runif(N.simturk*length(sim.turkey.list), 0.08464538 - (2*0.04287019), 0.08464538 + (2*0.04287019)),
+         mu = rep(0, N.simturk*length(sim.turkey.list)),
+         k = runif(N.simturk*length(sim.turkey.list), 0.84834637 - (10*1.744392e-02), 0.84834637 + (10*1.744392e-02)),
+         theta = runif(N.simturk*length(sim.turkey.list), 0.00311007 - (10*7.517423e-05), 0.00311007 + (10*7.517423e-05))) %>% 
   rename(Long = StartX, Lat = StartY) %>% 
   mutate(Step = 1)
 
@@ -110,21 +111,22 @@ doParallel::registerDoParallel(cl = my.cluster)
 
 
 # foreach(simbird = 1:nrow(sim.turkey)) %dopar% {
-system.time(
-  sim.output2 <- foreach(simbird = 501:600, .combine = "rbind", .packages = c("dplyr", "raster", "sf", "lubridate", "units", "CircStats")) %dopar% {
+Sys.time()
+# for(i in 1:nrow(startlocs)){
+for(i in 15){
+  sim.output1 <- foreach(simbird = (N.simturk*(i-1)+1):(N.simturk*(i)), .combine = "rbind", .packages = c("dplyr", "raster", "sf", "lubridate", "units", "CircStats")) %dopar% {
     source("./MTC 2a - Simulation Functions.R")
-    singletrack <- sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
-    write.csv(singletrack, paste("./Simulations/Simulation", singletrack$OG.ID[1], "OG", singletrack$Sim.ID[1], "SIM.csv", sep = "_"))
-    return(singletrack)
+    sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
   }
-)
+  write.csv(sim.output1, paste("./Simulations/Output_OGID_", i, ".csv", sep = ""))
+}
+Sys.time()
 parallel::stopCluster(cl = my.cluster)
 
-write.csv(sim.output, "./Simulations/AllOutputs.csv")
 
 
 ### Output line shapefile
-sim.lines <- sim.output2 %>% 
+sim.lines <- sim.output1 %>% 
   mutate(LineID = paste(OG.ID, Sim.ID, sep = "_")) %>%
   st_as_sf(coords = c("x","y")) %>% 
   sf::st_set_crs(32619) %>% 
@@ -138,10 +140,10 @@ sim.lines <- sim.output2 %>%
 
 
 #create start and end point sf objects
-start <- sim.output2[1, c("x","y")] %>%
+start <- sim.output1[1, c("x","y")] %>%
   st_as_sf(coords = c("x","y")) %>% 
   sf::st_set_crs(32619)
-end <- sim.output2[1, c("EndX","EndY")]%>%
+end <- sim.output1[1, c("EndX","EndY")]%>%
   st_as_sf(coords = c("EndX","EndY")) %>% 
   sf::st_set_crs(32619)
 
