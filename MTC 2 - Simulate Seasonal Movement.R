@@ -8,7 +8,7 @@ lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, c
 
 
 ### User-Defined variables used for simulations or setup
-N.simturk <- 10 #The number of simulations PER STARTING POINTS
+N.simturk <- 100 #The number of simulations PER STARTING POINTS
 R <- 250 #Perception Distance, how far away will turkey still be able to consider a patch
 N.steps.max <- 500 #15 steps * number of days
 end.dist <- 1000 #Distance simulation needs to be to end point to conclude individual simulation
@@ -42,11 +42,11 @@ names(HS_roost) <- "layer"
 sim.turkey.list <- list()
 for(i in 1:nrow(obs.paths)){
   sim.turkey.list[[i]] <- data.frame(Sim.ID = 1:N.simturk,
-                                OG.ID = rep(obs.paths$OG.ID[i], N.simturk),
-                                StartX = rep(obs.paths$StartX[i], N.simturk),
-                                StartY = rep(obs.paths$StartY[i], N.simturk),
-                                EndX = rep(obs.paths$EndX[i], N.simturk),
-                                EndY = rep(obs.paths$EndY[i], N.simturk))
+                                     OG.ID = rep(obs.paths$OG.ID[i], N.simturk),
+                                     StartX = rep(obs.paths$StartX[i], N.simturk),
+                                     StartY = rep(obs.paths$StartY[i], N.simturk),
+                                     EndX = rep(obs.paths$EndX[i], N.simturk),
+                                     EndY = rep(obs.paths$EndY[i], N.simturk))
 }
 
 #DataFrame with 
@@ -60,31 +60,32 @@ sim.turkey <- do.call(rbind.data.frame, sim.turkey.list) %>%
   mutate(Step = 1)
 
 source("./MTC 2a - Simulation Functions.R")
+
 #### TEST CODE ####
-startpoint.df <- sim.turkey[1,]
-rasterday <- sim.world
-rasterroost<- sim.world
 
-dec.output <- data.frame(ID = 1,
-                         CellID = NA, 
-                         HS = NA,
-                         D = NA,
-                         x = sim.turkey[1,]$Long[1],
-                         y = sim.turkey[1,]$Lat[1],
-                         A = NA, 
-                         TurnA = runif(1, -pi, pi),
-                         W = NA)
-location <- cbind(sim.turkey[i,], dec.output) 
-raster <- HS_day
-prev.angle <- 100
-
-sim.decision(location, raster, prev.angle)
-
-test <- sim.disperse(sim.turkey[1,], HS_day, HS_roost)
-test.line <-  st_linestring(as.matrix(test[,c("x", "y")]))
-plot(test.line)
-
-system.time(sim.disperse(sim.turkey[1,], HS_day, HS_roost))
+# startpoint.df <- sim.turkey[1,]
+# rasterday <- sim.world
+# rasterroost<- sim.world
+# 
+# dec.output <- data.frame(ID = 1,
+#                          CellID = NA, 
+#                          HS = NA,
+#                          D = NA,
+#                          x = sim.turkey[1,]$Long[1],
+#                          y = sim.turkey[1,]$Lat[1],
+#                          A = NA, 
+#                          TurnA = runif(1, -pi, pi),
+#                          W = NA)
+# location <- cbind(sim.turkey[i,], dec.output) 
+# raster <- HS_day
+# prev.angle <- 100
+# 
+# sim.decision(location, raster, prev.angle)
+# 
+# test <- sim.disperse(sim.turkey[1,], HS_day, HS_roost)
+# 
+# 
+# system.time(sim.disperse(sim.turkey[1,], HS_day, HS_roost))
 
 #####################################################################
 
@@ -99,6 +100,7 @@ lapply(c("doParallel", "foreach"), require, character.only = TRUE)
 # Create a parallel cluster
 parallel::detectCores()
 n.cores <- parallel::detectCores() - 1
+# n.cores <- 6
 my.cluster <- parallel::makeCluster(
   n.cores, 
   type = "PSOCK"
@@ -107,12 +109,57 @@ my.cluster <- parallel::makeCluster(
 doParallel::registerDoParallel(cl = my.cluster)
 
 
-sim.output <- list()
 # foreach(simbird = 1:nrow(sim.turkey)) %dopar% {
 system.time(
-sim.output <- foreach(simbird = 1:20, .combine =T, .packages = c("dplyr", "raster", "sf", "lubridate", "units", "CircStats")) %dopar% {
-  source("./MTC 2a - Simulation Functions.R")
-  sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
-}
+  sim.output2 <- foreach(simbird = 501:600, .combine = "rbind", .packages = c("dplyr", "raster", "sf", "lubridate", "units", "CircStats")) %dopar% {
+    source("./MTC 2a - Simulation Functions.R")
+    singletrack <- sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
+    write.csv(singletrack, paste("./Simulations/Simulation", singletrack$OG.ID[1], "OG", singletrack$Sim.ID[1], "SIM.csv", sep = "_"))
+    return(singletrack)
+  }
 )
 parallel::stopCluster(cl = my.cluster)
+
+write.csv(sim.output, "./Simulations/AllOutputs.csv")
+
+
+### Output line shapefile
+sim.lines <- sim.output2 %>% 
+  mutate(LineID = paste(OG.ID, Sim.ID, sep = "_")) %>%
+  st_as_sf(coords = c("x","y")) %>% 
+  sf::st_set_crs(32619) %>% 
+  group_by(LineID) %>% 
+  arrange(Step) %>%
+  summarize(m = mean(HS, na.omit = T), do_union = F) %>%
+  st_cast("LINESTRING")
+
+### Plot on raster
+#Change Habitat suitability raster to dataframe for use in GGplot
+
+
+#create start and end point sf objects
+start <- sim.output2[1, c("x","y")] %>%
+  st_as_sf(coords = c("x","y")) %>% 
+  sf::st_set_crs(32619)
+end <- sim.output2[1, c("EndX","EndY")]%>%
+  st_as_sf(coords = c("EndX","EndY")) %>% 
+  sf::st_set_crs(32619)
+
+
+
+# rastext <- st_read("./GIS/Disperser End.shp") %>% st_transform(32619)
+rastext <-merge(extent(sim.lines), extent(end))
+HS_df <- as.data.frame(rasterToPoints(crop(HS_day, rastext)))
+
+require(ggplot2)
+ggplot(data = sim.lines) +
+  geom_raster(data = HS_df, aes(x = x, y = y, fill = layer)) +
+  geom_sf(aes(color = LineID), show.legend = F) +
+  geom_sf(data = start, color = "green", size = 2, shape = 9) +
+  geom_sf(data = end, color = "red", size = 2, shape = 9) +
+  theme_classic() +
+  scale_fill_continuous(type = "viridis")
+
+
+test.line <-  st_linestring(as.matrix(test[test$LineID == "1_1",c("x", "y")]))
+plot(test.line)
