@@ -48,7 +48,7 @@ sim.decision <- function(location, raster, prev.angle, i){
     mutate(A = ifelse(A < 0, 360 + A, A),
            TurnA = 180 - abs(abs(A - prev.angle) - 180)) %>%
     mutate(TurnA = pi* TurnA/180) %>%
-    mutate(W = cell.selection.w(HS, D, A, location$p[1], location$k[1], 1/location$theta[1], location$mu[1], location$rho[1]))
+    mutate(W = cell.selection.w(HS, D, A, location$p[1], location$k[1], 1/location$rate[1], location$mu[1], location$rho[1]))
   
   if(i %% 15 == 0){ 
     if(identical(options$W, rep(0.1, nrow(options)))){
@@ -74,10 +74,10 @@ sim.decision <- function(location, raster, prev.angle, i){
 
 
 ### Function to calculate the weight of a raster cell for sim.decision
-cell.selection.w <- function(H, D, TA, p, k, theta, mu, rho){
+cell.selection.w <- function(H, D, TA, p, k, rate, mu, rho){
   HS <- H^exp(p - 1) 
-  S <- dgamma(D, k, 1/theta)
-  TnA <- dwrpcauchy(TA, mu, rho)
+  S <- dgamma(D, k, scale = 1/rate)
+  TnA <- dwrpcauchy(TA, mu, exp(-rho))
   w <- HS * S * TnA
   
   w <- ifelse(is.infinite(w), 0, ifelse(is.na(w), 0, w))
@@ -98,6 +98,9 @@ nearest.tree <- function(location, raster){
     rename(HS = layer, CellID = cells)
   D.raster <- raster::distanceFromPoints(rasterFromCells(raster, options$CellID), location[,c("x", "y")])
   options$D <- as.data.frame(extract(D.raster, location[,c("x", "y")], buffer = increased.R, cellnumbers = T, df = T))[,3]
-  options <- options %>% mutate(W = ifelse(HS == 0, 0, 1/D))
+  options <- options %>% 
+    mutate(D = ifelse(is.na(D), 0, D),
+           HS = ifelse(is.na(HS), 0, HS)) %>%
+    mutate(W = ifelse(HS == 0, 0, 1/D))
   return(options)
 }
