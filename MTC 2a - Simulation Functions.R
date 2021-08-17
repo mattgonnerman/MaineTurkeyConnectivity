@@ -1,6 +1,6 @@
 ### Simulate Spring Seasonal Movement Track for 1 bird
 sim.disperse <- function(startpoint.df, rasterday, rasterroost){
-  dec.output <- data.frame(ID = 1,
+    dec.output <- data.frame(ID = 1,
                            CellID = NA, 
                            HS = NA,
                            D = NA,
@@ -31,9 +31,9 @@ sim.disperse <- function(startpoint.df, rasterday, rasterroost){
     }
   }
   
-  
   return(output.df)
 }
+
 
 ### Function to simulate 1 decision for moving from one location to another on given raster, weighted
 sim.decision <- function(location, raster, prev.angle, i){
@@ -53,6 +53,13 @@ sim.decision <- function(location, raster, prev.angle, i){
   if(i %% 15 == 0){ 
     if(identical(options$W, rep(0.1, nrow(options)))){
       options <- nearest.tree(location, raster)
+      options <- cbind(options, xyFromCell(raster, cell = options$CellID)) %>%
+        mutate(A = geosphere::bearing(sp::spTransform(sp::SpatialPoints(coords = location[,c("x", "y")], proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs ")),
+                                      sp::spTransform(sp::SpatialPoints(coords = matrix(c(x,y), ncol =2), proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs ")))) %>%
+        mutate(A = ifelse(A < 0, 360 + A, A),
+               TurnA = 180 - abs(abs(A - prev.angle) - 180)) %>%
+        mutate(TurnA = pi* TurnA/180) %>%
+        relocate(W, .after = last_col())
       decision <- sample(1:nrow(options), 1, prob = options$W)
       return(options[decision,])
     }else{
@@ -82,14 +89,15 @@ cell.selection.w <- function(H, D, TA, p, k, theta, mu, rho){
   }
 }
 
+
 ### If a bird doesn't have a roosting location near it when its time to roost (within R), 
 ### then sample all forested areas within an expanded radius and use distance as weights
 nearest.tree <- function(location, raster){
-  increased.R <- 1000
+  increased.R <- 2000
   options <- as.data.frame(extract(raster, location[,c("x", "y")], buffer = increased.R, cellnumbers = T, df = T)) %>%
     rename(HS = layer, CellID = cells)
   D.raster <- raster::distanceFromPoints(rasterFromCells(raster, options$CellID), location[,c("x", "y")])
   options$D <- as.data.frame(extract(D.raster, location[,c("x", "y")], buffer = increased.R, cellnumbers = T, df = T))[,3]
-  options <- options %>% mutate(W = ifelse(HS == 0, 0, D))
+  options <- options %>% mutate(W = ifelse(HS == 0, 0, 1/D))
   return(options)
 }

@@ -6,11 +6,14 @@
 ### Load Packages
 lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, character.only = TRUE)
 
+#################################
+### PREPARE SIMULATION INPUTS ###
+#################################
 
 ### User-Defined variables used for simulations or setup
 N.simturk <- 100 #The number of simulations PER STARTING POINTS
 # R <- 250 #Perception Distance, how far away will turkey still be able to consider a patch
-N.steps.max <- 500 #15 steps * number of days
+N.steps.max <- 15*10 #15 steps * number of days
 end.dist <- 1000 #Distance simulation needs to be to end point to conclude individual simulation
 
 ### Load/Setup Start and End Locations
@@ -59,81 +62,15 @@ sim.turkey <- do.call(rbind.data.frame, sim.turkey.list) %>%
          k = runif(N.simturk*length(sim.turkey.list), 0.84834637 - (10*1.744392e-02), 0.84834637 + (10*1.744392e-02)),
          theta = runif(N.simturk*length(sim.turkey.list), 0.00311007 - (10*7.517423e-05), 0.00311007 + (10*7.517423e-05))) %>% 
   rename(Long = StartX, Lat = StartY) %>% 
-  mutate(Step = 1)
+  mutate(Step = 0)
 
 source("./MTC 2a - Simulation Functions.R")
 
 
-
-#### TEST CODE ####
-
-test <- sim.disperse(sim.turkey[2,], HS_day, HS_roost)
-
-sim.lines <- test %>%
-  mutate(LineID = paste(OG.ID, Sim.ID, sep = "_")) %>%
-  st_as_sf(coords = c("x","y")) %>%
-  sf::st_set_crs(32619) %>%
-  group_by(LineID) %>%
-  arrange(Step) %>%
-  summarize(m = mean(HS, na.omit = T), do_union = F) %>%
-  st_cast("LINESTRING")
-
-start <- test[1, c("x","y")] %>%
-  st_as_sf(coords = c("x","y")) %>%
-  sf::st_set_crs(32619)
-end <- test[1, c("EndX","EndY")]%>%
-  st_as_sf(coords = c("EndX","EndY")) %>%
-  sf::st_set_crs(32619)
-# rastext <- st_read("./GIS/Disperser End.shp") %>% st_transform(32619)
-rastext <-merge(extent(sim.lines), extent(end))
-HS_df <- as.data.frame(rasterToPoints(crop(HS_day, rastext)))
-
-require(ggplot2)
-ggplot(data = sim.lines) +
-  geom_raster(data = HS_df, aes(x = x, y = y, fill = layer)) +
-  geom_sf(aes(color = LineID), show.legend = F) +
-  geom_sf(data = start, color = "purple", size = 4, shape = 20) +
-  geom_sf(data = end, color = "red", size = 4, shape = 20) +
-  theme_classic() +
-  scale_fill_continuous(type = "viridis")
- ##################################################
-#####################################################################
-
-
-####################
-### RUN THE CODE ###
-##### PARALLEL #####
-####################
+###########################
+### RUN CODE - PARALLEL ###
+###########################
 lapply(c("doParallel", "foreach", "parallel"), require, character.only = TRUE)
-
-### dopar Version 
-# Create a parallel cluster
-n.cores <- parallel::detectCores()/2
-my.cluster <- parallel::makeCluster(
-  n.cores, 
-  type = "PSOCK"
-)
-doParallel::registerDoParallel(cl = my.cluster)
-
-
-# foreach(simbird = 1:nrow(sim.turkey)) %dopar% {
-Sys.time()
-# for(i in 1:nrow(startlocs)){
-system.time(
-  sim.output3 <- foreach(simbird = 1,
-                         .combine = "rbind",
-                         .packages = c("dplyr", "raster", "sf", "lubridate", "units", "CircStats")) %dopar% {
-                           source("./MTC 2a - Simulation Functions.R")
-                           single.out <- sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
-                           return(single.out)
-                         }
-  # write.csv(sim.output1, paste("./Simulations/Output_OGID_", i, ".csv", sep = ""))
-)
-Sys.time()
-parallel::stopCluster(cl = my.cluster)
-
-
-
 
 ### parLapply version
 n.cores <- parallel::detectCores() - 1
@@ -144,31 +81,22 @@ my.cluster <- parallel::makeCluster(
 clusterEvalQ(my.cluster, {lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, character.only = TRUE)})
 clusterExport(my.cluster, c("sim.turkey", "N.steps.max", "HS_day", "HS_roost", "end.dist"))
 
-Sys.time()
-system.time(
-  # sim.output2 <- parLapply(cl = my.cluster, X = (N.simturk*(15-1)+1):(N.simturk*(15)),
-  sim.output2 <- parLapply(cl = my.cluster, X = 1:n.cores,
-          function(simbird) {
-            source("./MTC 2a - Simulation Functions.R")
-            single.out <- sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
-            return(single.out)
-          })
-)
-sim.output1 <- do.call("bind_rows",sim.output2)
-# write.csv(sim.output1, paste("./Simulations/Output_OGID_", 15, ".csv", sep = ""))
-
-Sys.time()
+sim.output.list <- parLapply(cl = my.cluster, X = (N.simturk*(15-1)+1):(N.simturk*(15)),
+                         function(simbird) {
+                           source("./MTC 2a - Simulation Functions.R")
+                           sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
+                         })
+sim.output <- do.call("bind_rows", sim.output.list)
 parallel::stopCluster(cl = my.cluster)
 
 
-
-
-
-
-
+####################
+### CREATE PLOTS ###
+####################
+sim.output <- read.csv("./Simulations/AllOutputs.csv")
 
 ### Output line shapefile
-sim.lines <- sim.output1 %>% 
+sim.lines <- sim.output %>% 
   mutate(LineID = paste(OG.ID, Sim.ID, sep = "_")) %>%
   st_as_sf(coords = c("x","y")) %>% 
   sf::st_set_crs(32619) %>% 
@@ -182,10 +110,10 @@ sim.lines <- sim.output1 %>%
 
 
 #create start and end point sf objects
-start <- sim.output1[1, c("x","y")] %>%
+start <- sim.output3[1, c("x","y")] %>%
   st_as_sf(coords = c("x","y")) %>% 
   sf::st_set_crs(32619)
-end <- sim.output1[1, c("EndX","EndY")]%>%
+end <- sim.output3[1, c("EndX","EndY")]%>%
   st_as_sf(coords = c("EndX","EndY")) %>% 
   sf::st_set_crs(32619)
 
@@ -205,5 +133,47 @@ ggplot(data = sim.lines) +
   scale_fill_continuous(type = "viridis")
 
 
-test.line <-  st_linestring(as.matrix(test[test$LineID == "1_1",c("x", "y")]))
-plot(test.line)
+###################
+#### TEST CODE ####
+###################
+#Test sim.disperse()
+startpoint.df <- sim.turkey[3,]
+rasterday <- HS_day
+rasterroost <- HS_roost
+test <- sim.disperse(sim.turkey[3,], HS_day, HS_roost)
+test.list <- list()
+test.list[[10]] <- test
+
+
+
+
+
+sim.lines <- sim.output %>%
+  mutate(LineID = paste(OG.ID, Sim.ID, sep = "_")) %>%
+  st_as_sf(coords = c("x","y")) %>%
+  sf::st_set_crs(32619) %>%
+  group_by(LineID) %>%
+  arrange(Step) %>%
+  summarize(m = mean(HS, na.omit = T), do_union = F) %>%
+  st_cast("LINESTRING")
+
+start <- sim.output[sim.output$Step == 0, c("x","y")] %>%
+  st_as_sf(coords = c("x","y")) %>%
+  sf::st_set_crs(32619)
+end <- sim.output[sim.output$Step == 0, c("EndX","EndY")]%>%
+  st_as_sf(coords = c("EndX","EndY")) %>%
+  sf::st_set_crs(32619)
+# rastext <- st_read("./GIS/Disperser End.shp") %>% st_transform(32619)
+rastext <-merge(extent(sim.lines), extent(end))
+HS_df <- as.data.frame(rasterToPoints(crop(HS_day, rastext)))
+
+require(ggplot2)
+ggplot(data = sim.lines) +
+  geom_raster(data = HS_df, aes(x = x, y = y, fill = layer)) +
+  geom_sf(aes(color = LineID), show.legend = F, lwd = 1) +
+  geom_sf(data = start, color = "purple", size = 4, shape = 20) +
+  geom_sf(data = end, color = "red", size = 4, shape = 20) +
+  theme_classic() +
+  scale_fill_continuous(type = "viridis")
+
+#####################################################################
