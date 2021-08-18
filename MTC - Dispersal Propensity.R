@@ -1,6 +1,5 @@
-### Dispersal propensity ###
 # Load Packages
-lapply(c("dplyr", "ggplot2", "move", "sf"), require, character.only = TRUE)
+lapply(c("dplyr", "ggplot2", "move", "sf", "lubridate"), require, character.only = TRUE)
 
 #################################################################################################################
 ### LOAD DATA ###
@@ -13,13 +12,14 @@ trap.slim <- trap.raw %>%
 # Load Harvest Data
 harvest.raw <- read.csv("Harvests - Harvested Birds.csv")
 harvest.slim <- harvest.raw %>% 
-  dplyr::select(BirdID = Alum.Band.ID, BirdID2 = Rivet.ID, HarvYear = Year, HarvSeason = Season,
-                HarvTown = Town.of.Harvest, CapTown = Town.of.Capture, HarvDate = Date.of.Harvest)
+  dplyr::select(BirdID = Alum.Band.ID, BirdID2 = Rivet.ID, EndYear = Year, HarvSeason = Season,
+                EndTown = Town.of.Harvest)
 
 # Load Nest Data
 nest.raw <- read.csv("Nest Monitoring - Nest Info.csv")
 nest.slim <- nest.raw %>%
-  dplyr::select(BirdID = Alum.Band.ID, NestYear = Year, Lat = NestLat, Long = NestLong, NestDate = Est.Laying.Initiation)
+  dplyr::select(BirdID = Alum.Band.ID, EndYear = Year, EndLat = NestLat, EndLong = NestLong, estDate = Est.Laying.Initiation) %>%
+  filter(!is.na(BirdID))
 
 # Download Movement Data
 login <- movebankLogin(username = "matthew.gonnerman", password="26qPDLY9YN")
@@ -28,37 +28,38 @@ gps.slim <- gpslocations.raw@data %>%
   dplyr::select(Lat = location_lat, Long = location_long, Date = timestamp) %>%
   mutate(BirdID = substr(gpslocations.raw@trackId, 2, 10))
 
-# Load Telemetry Data
-telem.raw <- read.csv("Telemetry_Data - Telemetry.csv")
-telem.slim <- telem.raw %>%
-  dplyr::select(BirdID = AlumBand, TelemDate = Date, Fate, Lat = Lat1, Long = Long1)
-
 # Load Capture Site Information
 capsites.raw <- read.csv("CaptureSites - Sheet1.csv")
 capsites.slim <- capsites.raw %>%
   dplyr::select(Town, CapLoc = Location.Name, Lat = Latitude, Long = Longitude)
-
-capsites.sf <- st_as_sf(capsites.slim, coords = c("Long", "Lat"), crs = projection(gpslocations.raw))
-st_write(capsites.sf, dsn = "./GIS", layer = "CaptureSites.shp", driver = "ESRI Shapefile")
+capsites.sf <- st_as_sf(capsites.slim, coords = c("Long", "Lat"), crs = 4326) %>%
+  dplyr::select(-Town)
 
 # Load Town Boundaries Shapefile
-townbound <- st_read("E:/Maine Drive/GIS/Maine_Boundaries_Town_and_Townships_Polygon-shp/Maine_Boundaries_Town_and_Townships_Polygon.shp") %>%
+townbound <- st_read("E:/Maine Drive/GIS/Maine_Town_and_Townships_Boundary_Polygons_Feature.shp") %>%
+  group_by(TOWN) %>%
+  filter(TArea_KM2 == max(TArea_KM2)) %>%
   dplyr::select(Town = TOWN)
+townbound <- st_transform(townbound, crs = 4326)
+townbound.center.sf <- st_centroid(townbound)
+towncenter.df <- data.frame(Town = townbound.center.sf$Town,
+                            EndLong = st_coordinates(townbound.center.sf)[,1],
+                            EndLat = st_coordinates(townbound.center.sf)[,2])
 
-###################################################################################################################
-### STARTING LOCATION ###
-#########################
-startloc <- merge(trap.slim, capsites.slim , by = "CapLoc", all.x = T) %>%
-  dplyr::select(BirdID, BirdID2, Date = CapDate, Town) %>%
-  mutate(Date = as.Date(Date, format = "%m/%d/%Y"))
+#Correct CapSite Names
+capsites.sf <- st_join(capsites.sf, townbound, join = st_within) %>%
+  mutate(CapLong =  st_coordinates(capsites.sf)[,1],
+         CapLat =  st_coordinates(capsites.sf)[,2])
+capsites.df <- capsites.sf %>% st_drop_geometry()
 
 
+#################################################################################################################
+### MERGE DATA ###
+##################
+# Starting Locations
+caplocs <- merge(trap.slim, capsites.sf , by = "CapLoc", all.x = T) %>%
+  dplyr::select(BirdID, BirdID2, StartDate = CapDate, StartTown = Town, CapLoc) %>%
+  mutate(StartDate = as.Date(StartDate, format = "%m/%d/%Y")) %>%
+  mutate(StartYear = year(StartDate))
 
-###################################################################################################################
-### FINAL LOCATION ###
-######################
-harvest.floc <- harvest.slim %>% dplyr::select(BirdID, BirdID2, Date = HarvDate, Town = HarvTown) %>%
-  mutate(Date = as.Date(Date, format = "%m/%d/%Y")) %>%
-  mutate(DataSource = "Harvest")
-
-nest.floc <- nest.slim %>% dplyr::select(BirdID, Date = NestDate, Lat, Long) 
+harvest.ready <- harvest.slim

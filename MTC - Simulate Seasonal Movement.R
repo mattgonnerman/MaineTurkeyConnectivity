@@ -11,10 +11,9 @@ lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, c
 #################################
 
 ### User-Defined variables used for simulations or setup
-N.simturk <- 100 #The number of simulations PER STARTING POINTS
+N.simturk <- 1 #The number of simulations PER STARTING POINTS
 # R <- 250 #Perception Distance, how far away will turkey still be able to consider a patch
 N.steps.max <- 15*30 #15 steps * number of days
-end.dist <- 500 #Distance simulation needs to be to end point to conclude individual simulation
 
 ### Load/Setup Start and End Locations
 startlocs <- st_read("./GIS/Disperser Start.shp")
@@ -35,7 +34,8 @@ obs.paths <- merge(startlocs, endlocs, by = c("BirdID", "ID", "ObsType")) %>%
 
 ### Load/Setup World
 slocs <- st_read("./GIS/Disperser Start.shp")
-elocs <- st_read("./GIS/Disperser End.shp")
+elocs <- st_read("./GIS/Disperser End.shp") %>%
+  mutate(Sex = NA, Age = NA, Flock_Size = NA)
 bothlocs <- st_transform(rbind(slocs, elocs), 32619)
 HS_day <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/HS_Day.tif")
 names(HS_day) <- "layer"
@@ -75,9 +75,9 @@ source("./MTC - Simulation Functions.R")
 lapply(c("parallel"), require, character.only = TRUE)
 
 ### parLapply version
-for(ogbird in 5){
+for(ogbird in 1:5){
   # Sampling distance is dependent on observation type (Harvest vs Nest)
-  end.dist <- ifelse(obs.paths$ObsType[ogbird] == "H", 6852.906, 1922.514) #Distance simulation needs to be to end point to conclude individual simulation
+  # end.dist <- ifelse(obs.paths$ObsType[ogbird] == "H", 6852.906, 1922.514) #Distance simulation needs to be to end point to conclude individual simulation
   
   n.cores <- parallel::detectCores() - 1
   my.cluster <- parallel::makeCluster(
