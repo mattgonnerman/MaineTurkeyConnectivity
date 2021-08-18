@@ -28,7 +28,7 @@ endlocs$EndX <- st_coordinates(endlocs)[,1]
 endlocs$EndY <- st_coordinates(endlocs)[,2]
 endlocs <- st_drop_geometry(endlocs)
 
-obs.paths <- merge(startlocs, endlocs, by = c("BirdID", "ID")) %>%
+obs.paths <- merge(startlocs, endlocs, by = c("BirdID", "ID", "ObsType")) %>%
   arrange(ID) %>%
   rename(OG.ID = ID)
 
@@ -41,6 +41,8 @@ HS_day <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/HS_Da
 names(HS_day) <- "layer"
 HS_roost <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/HS_Roost.tif")
 names(HS_roost) <- "layer"
+
+
 ### Create Animals and Setup Starting Locations
 sim.turkey.list <- list()
 for(i in 1:nrow(obs.paths)){
@@ -64,7 +66,7 @@ sim.turkey <- do.call(rbind.data.frame, sim.turkey.list) %>%
   rename(Long = StartX, Lat = StartY) %>% 
   mutate(Step = 0)
 
-source("./MTC 2a - Simulation Functions.R")
+source("./MTC - Simulation Functions.R")
 
 ##########################################################################################################
 ###########################
@@ -74,6 +76,9 @@ lapply(c("parallel"), require, character.only = TRUE)
 
 ### parLapply version
 for(ogbird in 5){
+  # Sampling distance is dependent on observation type (Harvest vs Nest)
+  end.dist <- ifelse(obs.paths$ObsType[ogbird] == "H", 6852.906, 1922.514) #Distance simulation needs to be to end point to conclude individual simulation
+  
   n.cores <- parallel::detectCores() - 1
   my.cluster <- parallel::makeCluster(
     n.cores, 
@@ -84,7 +89,7 @@ for(ogbird in 5){
   
   sim.output.list <- parLapply(cl = my.cluster, X = (N.simturk*(ogbird-1)+1):(N.simturk*(ogbird)),
                                function(simbird) {
-                                 source("./MTC 2a - Simulation Functions.R")
+                                 source("./MTC - Simulation Functions.R")
                                  sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
                                })
   sim.output <- do.call("bind_rows", sim.output.list)
@@ -92,86 +97,3 @@ for(ogbird in 5){
   write.csv(sim.output, filelocation, append = T)
   parallel::stopCluster(cl = my.cluster)
 }
-
-
-
-##########################################################################################################
-####################
-### CREATE PLOTS ###
-####################
-### Output line shapefile
-sim.lines <- sim.output %>% 
-  mutate(LineID = paste(OG.ID, Sim.ID, sep = "_")) %>%
-  st_as_sf(coords = c("x","y")) %>% 
-  sf::st_set_crs(32619) %>% 
-  group_by(LineID) %>% 
-  arrange(Step) %>%
-  summarize(m = mean(HS, na.omit = T), do_union = F) %>%
-  st_cast("LINESTRING")
-
-### Plot on raster
-#Change Habitat suitability raster to dataframe for use in GGplot
-
-
-#create start and end point sf objects
-start <- sim.output[sim.output$Step == 0, c("x","y")] %>%
-  distinct() %>%
-  st_as_sf(coords = c("x","y")) %>% 
-  sf::st_set_crs(32619)
-end <- sim.output[, c("EndX","EndY")]%>%
-  distinct() %>%
-  st_as_sf(coords = c("EndX","EndY")) %>% 
-  sf::st_set_crs(32619)
-# Adjust extent to include all elements and crop raster
-rastext <-merge(extent(sim.lines), extent(end))
-rastext <- extend(rastext,2000)
-HS_df <- as.data.frame(rasterToPoints(crop(HS_day, rastext)))
-
-require(ggplot2)
-ggplot(data = sim.lines) +
-  geom_raster(data = HS_df, aes(x = x, y = y, fill = layer)) +
-  geom_sf(aes(color = LineID), show.legend = F) +
-  # geom_sf(color = "yellow") +
-  geom_sf(data = start, color = "blue", size = 4, shape = 20) +
-  geom_sf(data = end, color = "red", size = 4, shape = 20) +
-  theme_classic() +
-  scale_fill_continuous(type = "viridis")
-
-### Subset to the best X simulations
-best.sims <- sim.output %>% 
-  group_by(Sim.ID) %>%
-  summarize(MinDist = min(D2End, na.rm = T)) %>%
-  arrange(MinDist) %>%
-  slice(1:10)
-
-best.lines <- sim.output %>%
-  filter(Sim.ID %in% best.sims$Sim.ID) %>%
-  mutate(LineID = paste(OG.ID, Sim.ID, sep = "_")) %>%
-  st_as_sf(coords = c("x","y")) %>% 
-  sf::st_set_crs(32619) %>% 
-  group_by(LineID) %>% 
-  arrange(Step) %>%
-  summarize(m = mean(HS, na.omit = T), do_union = F) %>%
-  st_cast("LINESTRING")
-
-#create start and end point sf objects
-start <- sim.output[sim.output$Step == 0, c("x","y")] %>%
-  distinct() %>%
-  st_as_sf(coords = c("x","y")) %>% 
-  sf::st_set_crs(32619)
-end <- sim.output[, c("EndX","EndY")]%>%
-  distinct() %>%
-  st_as_sf(coords = c("EndX","EndY")) %>% 
-  sf::st_set_crs(32619)
-# Adjust extent to include all elements and crop raster
-rastext <-merge(extent(best.lines), extent(end))
-rastext <- extend(rastext,2000)
-HS_df <- as.data.frame(rasterToPoints(crop(HS_day, rastext)))
-ggplot(data = best.lines) +
-  geom_raster(data = HS_df, aes(x = x, y = y, fill = layer)) +
-  geom_sf(aes(color = LineID), show.legend = F, lwd = 1.3) +
-  # geom_sf(color = "yellow") +
-  geom_sf(data = start, color = "blue", size = 4, shape = 20) +
-  geom_sf(data = end, color = "red", size = 4, shape = 20) +
-  theme_classic() +
-  scale_fill_continuous(type = "viridis")

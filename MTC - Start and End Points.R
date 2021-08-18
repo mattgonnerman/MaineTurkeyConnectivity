@@ -41,7 +41,7 @@ capsites.sf <- st_as_sf(capsites.slim, coords = c("Long", "Lat"), crs = 4326) %>
   dplyr::select(-Town)
 
 # Load Town Boundaries Shapefile
-townbound <- st_read("E:/Maine Drive/GIS/Maine_Boundaries_Town_and_Townships_Polygon-shp/Maine_Boundaries_Town_and_Townships_Polygon.shp") %>%
+townbound <- st_read("E:/Maine Drive/GIS/Maine_Town_and_Townships_Boundary_Polygons_Feature.shp") %>%
   group_by(TOWN) %>%
   filter(TArea_KM2 == max(TArea_KM2)) %>%
   dplyr::select(Town = TOWN)
@@ -106,27 +106,35 @@ nest.cap <- nest.cap %>% st_drop_geometry()
 nest.start <- nest.cap %>%
   dplyr::select(BirdID, CapLong, CapLat) %>%
   distinct() %>%
-  arrange(BirdID)
+  arrange(BirdID)%>%
+  mutate(ObsType = "N")
 nest.end <- nest.cap %>%
   dplyr::select(BirdID, EndLong, EndLat)%>%
   distinct() %>%
-  arrange(BirdID)
+  arrange(BirdID)%>%
+  mutate(ObsType = "N")
 
 #Harvests
 harvest.start <- merge(harvest.ready, capsites.df, by = "CapLoc", all.x = T) %>%
-  dplyr::select(BirdID, CapLong, CapLat)
+  dplyr::select(BirdID, CapLong, CapLat) %>%
+  mutate(ObsType = "H")
 
 harvest.end <- merge(harvest.ready, towncenter.df, by = "Town", all.x = T) %>%
-  dplyr::select(BirdID, EndLong, EndLat)
+  dplyr::select(BirdID, EndLong, EndLat) %>%
+  mutate(ObsType = "H")
 
 #Merge
 startlocs <- rbind(nest.start, harvest.start) %>%
   arrange(BirdID) %>%
-  mutate(ID = as.numeric(as.factor(BirdID)))
+  mutate(ID = as.numeric(as.factor(BirdID))) 
 
 endlocs <- rbind(nest.end, harvest.end) %>%
   arrange(BirdID) %>%
   mutate(ID = as.numeric(as.factor(BirdID)))
+
+#Merge Capture Information
+mergetrapinfo <- trap.slim %>% dplyr::select(BirdID, Sex, Age, Flock.Size)
+startlocs <- merge(startlocs, mergetrapinfo, by = "BirdID", all.x = T)
 
 #save as shapefiles
 disperser.start <- st_as_sf(startlocs, coords = c("CapLong", "CapLat"), crs = 4326)
