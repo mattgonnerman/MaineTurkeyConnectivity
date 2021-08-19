@@ -75,7 +75,7 @@ source("./MTC - Simulation Functions.R")
 lapply(c("parallel"), require, character.only = TRUE)
 
 ### parLapply version
-for(ogbird in 1:5){
+for(ogbird in 1:nrow(sim.turkey)){
   # Sampling distance is dependent on observation type (Harvest vs Nest)
   # end.dist <- ifelse(obs.paths$ObsType[ogbird] == "H", 6852.906, 1922.514) #Distance simulation needs to be to end point to conclude individual simulation
   
@@ -86,14 +86,15 @@ for(ogbird in 1:5){
   )
   clusterEvalQ(my.cluster, {lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, character.only = TRUE)})
   clusterExport(my.cluster, c("sim.turkey", "N.steps.max", "HS_day", "HS_roost", "end.dist"))
-  
+  system.time(
   sim.output.list <- parLapply(cl = my.cluster, X = (N.simturk*(ogbird-1)+1):(N.simturk*(ogbird)),
                                function(simbird) {
                                  source("./MTC - Simulation Functions.R")
                                  sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
                                })
+  )
   sim.output <- do.call("bind_rows", sim.output.list)
-  filelocation <- paste("./Simulations/OGBird", ogbird, "Simulations.csv", sep = "_")
+  filelocation <- paste("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/CalSims_OGBird", ogbird, "Set", 1, ".csv", sep = "_")
   write.csv(sim.output, filelocation, append = T)
   parallel::stopCluster(cl = my.cluster)
 }
