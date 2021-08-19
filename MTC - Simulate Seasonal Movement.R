@@ -11,7 +11,7 @@ lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, c
 #################################
 
 ### User-Defined variables used for simulations or setup
-N.simturk <- 1 #The number of simulations PER STARTING POINTS
+N.simturk <- 100 #The number of simulations PER STARTING POINTS
 # R <- 250 #Perception Distance, how far away will turkey still be able to consider a patch
 N.steps.max <- 15*30 #15 steps * number of days
 
@@ -85,7 +85,7 @@ for(ogbird in 1:nrow(sim.turkey)){
     type = "PSOCK"
   )
   clusterEvalQ(my.cluster, {lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, character.only = TRUE)})
-  clusterExport(my.cluster, c("sim.turkey", "N.steps.max", "HS_day", "HS_roost", "end.dist"))
+  clusterExport(my.cluster, c("sim.turkey", "N.steps.max", "HS_day", "HS_roost"))
   system.time(
   sim.output.list <- parLapply(cl = my.cluster, X = (N.simturk*(ogbird-1)+1):(N.simturk*(ogbird)),
                                function(simbird) {

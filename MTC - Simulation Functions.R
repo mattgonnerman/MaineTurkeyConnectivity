@@ -17,17 +17,11 @@ sim.disperse <- function(startpoint.df, rasterday, rasterroost){
       output.df[i+1,] <- cbind(output.df[i,1:13], step.decision) %>% mutate(Step = Step +1)
       output.df$D2End[i+1] <- abs(pointDistance(c(output.df$x[i+1],output.df$y[i+1]), 
                                                 c(output.df$EndX[i+1], output.df$EndY[i+1]), lonlat = F))
-      if(output.df$D2End[i+1] < end.dist){
-        break()
-      }
     }else{
       step.decision <- sim.decision(output.df[i,], rasterday, output.df$B[i], i)
       output.df[i+1,] <- cbind(output.df[i,1:13], step.decision) %>% mutate(Step = Step +1)
       output.df$D2End[i+1] <- abs(pointDistance(c(output.df$x[i+1],output.df$y[i+1]), 
                                                 c(output.df$EndX[i+1], output.df$EndY[i+1]), lonlat = F))
-      if(output.df$D2End[i+1] < end.dist){
-        break()
-      }
     }
   }
   return(output.df)
