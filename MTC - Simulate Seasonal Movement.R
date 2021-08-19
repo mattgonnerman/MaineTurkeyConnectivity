@@ -75,7 +75,7 @@ source("./MTC - Simulation Functions.R")
 lapply(c("parallel"), require, character.only = TRUE)
 
 ### parLapply version
-for(ogbird in 1:nrow(sim.turkey)){
+for(ogbird in 23:nrow(sim.turkey)){
   # Sampling distance is dependent on observation type (Harvest vs Nest)
   # end.dist <- ifelse(obs.paths$ObsType[ogbird] == "H", 6852.906, 1922.514) #Distance simulation needs to be to end point to conclude individual simulation
   

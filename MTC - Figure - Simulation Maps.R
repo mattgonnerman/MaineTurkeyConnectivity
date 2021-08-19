@@ -5,7 +5,8 @@
 lapply(c("dplyr", "ggplot2", "sf", "raster"), require, character.only = TRUE)
 HS_day <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/TurkeyConnectivity/HS_Day.tif")
 names(HS_day) <- "layer"
-sim.output <- read.csv(paste("./Simulations/OGBird", 5, "Simulations.csv", sep = "_"))
+sim.output <- read.csv(paste("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/CalSims_OGBird",
+                             3, "Set",1,".csv", sep = "_"))
 
 ### Output line shapefile
 sim.lines <- sim.output %>% 
@@ -35,22 +36,22 @@ rastext <-merge(extent(sim.lines), extent(end))
 rastext <- extend(rastext,2000)
 HS_df <- as.data.frame(rasterToPoints(crop(HS_day, rastext)))
 
-require(ggplot2)
-ggplot(data = sim.lines) +
-  geom_raster(data = HS_df, aes(x = x, y = y, fill = layer)) +
-  geom_sf(aes(color = LineID), show.legend = F) +
-  geom_sf(color = "yellow") +
-  geom_sf(data = start, color = "blue", size = 4, shape = 20) +
-  geom_sf(data = end, color = "red", size = 4, shape = 20) +
-  theme_classic() +
-  scale_fill_continuous(type = "viridis")
+# require(ggplot2)
+# ggplot(data = sim.lines) +
+#   geom_raster(data = HS_df, aes(x = x, y = y, fill = layer)) +
+#   geom_sf(aes(color = LineID), show.legend = F) +
+#   geom_sf(color = "yellow") +
+#   geom_sf(data = start, color = "blue", size = 4, shape = 20) +
+#   geom_sf(data = end, color = "red", size = 4, shape = 20) +
+#   theme_classic() +
+#   scale_fill_continuous(type = "viridis")
 
 ### Subset to the best X simulations
 best.sims <- sim.output %>% 
   group_by(Sim.ID) %>%
   summarize(MinDist = min(D2End, na.rm = T)) %>%
   arrange(MinDist) %>%
-  filter(MinDist < 1000)
+  slice(1)
 
 best.lines <- sim.output %>%
   filter(Sim.ID %in% best.sims$Sim.ID) %>%
