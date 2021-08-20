@@ -55,7 +55,7 @@ sim.decision <- function(location, raster, prev.bear, i){
                                       sp::spTransform(sp::SpatialPoints(coords = matrix(c(x,y), ncol =2), proj4string = CRS("+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs ")),CRS("+proj=longlat +datum=WGS84 +no_defs ")))) %>%
         mutate(B = ifelse(B < 0, 360 + B, B),
                TurnA = abs(B - prev.bear)) %>%
-        mutate(TurnA = ifelse(abs(TurnA) > 180, 360 - TurnA, TurnA),
+        mutate(TurnA = ifelse(TurnA > 180, 360 - TurnA, TurnA),
                TurnA = TurnA * pi/180) %>%
         relocate(W, .after = last_col())
       decision <- sample(1:nrow(options), 1, prob = options$W)
