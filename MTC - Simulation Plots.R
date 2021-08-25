@@ -71,4 +71,4 @@ sim.plot.loop <- function(BirdID, SetID){
 }
 
 
-sapply(1:96, FUN = sim.plot.loop, SetID = 1)
+sapply(1:72, FUN = sim.plot.loop, SetID = 2)
