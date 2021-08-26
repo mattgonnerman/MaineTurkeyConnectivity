@@ -18,6 +18,7 @@ harvest.slim <- harvest.raw %>%
 # Load Nest Data
 nest.raw <- read.csv("Nest Monitoring - Nest Info.csv")
 nest.slim <- nest.raw %>%
+  filter(Nest.Attempt == 1) %>%
   dplyr::select(BirdID = Alum.Band.ID, EndYear = Year, EndLat = NestLat, EndLong = NestLong, estDate = Est.Laying.Initiation) %>%
   filter(!is.na(BirdID))
 
@@ -112,6 +113,7 @@ NLCDrast <- raster("E:/Maine Drive/GIS/NLCD_2016_Land_Cover_L48_20190424/NLCD_20
 town_extract <- extract(NLCDrast, town.reduce) #creates a list for each polygon of all the cell values within it
 
 town_proportions <- lapply(town_extract, FUN= function(x){prop.table(table(x))}) #this returns proportion of each as a list
+names(town_proportions) <- town.reduce$Town
 rbind.fill <- function(x) {
   nam <- sapply(x, names)
   unam <- unique(unlist(nam))
@@ -124,13 +126,14 @@ rbind.fill <- function(x) {
 }
 town_percentcover <- rbind.fill(town_proportions) #dataframe of proportions, but no names for columns
 colnames(town_percentcover) <- paste("ID", colnames(town_percentcover), sep = "" )
+town_percentcover[is.na(town_percentcover)] <- 0
 town_percentcover <- town_percentcover %>% 
   mutate(Developed = ID21 + ID22 + ID23 + ID24) %>%
   mutate(Agriculture = ID81 + ID82) %>%
   mutate(Wetland = ID90 + ID95) %>%
   mutate(Grassland = ID71) %>%
   dplyr::select(Developed, Agriculture, Wetland, Grassland)
-town_percentcover[is.na(town_percentcover)] <- 0
+
 
 town.covs1 <- cbind(town.reduce, town_percentcover)
 
@@ -173,12 +176,21 @@ towns.covs2 <- merge(town.covs1, roadbytown, by = "Town", all.x = T) %>%
 
 town.covs3 <- cbind(towns.covs2, st_coordinates(st_transform(st_centroid(town.reduce), 32619))[,1:2])
 
-#Merge back to observed dispersal info
-disp.input <- merge(startend.full, town.covs3, by = "StartTown", all.x = T) %>%
+town.covs <- merge(startend.full, town.covs3, by = "StartTown", all.x = T) %>%
   dplyr::select(-geometry)
 
-write.csv(disp.input, "DispProp_input.csv", row.names = F)
+#################################################################################################################
+### Individual Specific Covariates ###
+######################################
+ind.covs <- trap.slim %>%
+  dplyr::select(BirdID, Sex, Age, Flock.Size)
+  
+#Merge back to observed dispersal info
+disp.input <- merge(town.covs, ind.covs, by = "BirdID", all.x = T) %>%
+  mutate(Sex = as.factor(Sex),
+         Age = as.factor(Age))
 
+write.csv(disp.input, "DispProp_input.csv", row.names = F)
 
 #################################################################################################################
 ### RUN MODELS AND MODEL SELECTION ###
@@ -199,6 +211,11 @@ cand.models[[11]] <- dispmodel.Ag2 <- glm(Disperser ~ poly(Agriculture,2), data 
 cand.models[[12]] <- dispmodel.Wet2 <- glm(Disperser ~ poly(Wetland,2), data = disp.input, family = "binomial")
 cand.models[[13]] <- dispmodel.Grass2 <- glm(Disperser ~ poly(Grassland,2), data = disp.input, family = "binomial")
 cand.models[[14]] <- dispmodel.Road2 <- glm(Disperser ~ poly(Road_KM,2), data = disp.input, family = "binomial")
+cand.models[[15]] <- dispmodel.Age <- glm(Disperser ~ Age, data = disp.input, family = "binomial")
+cand.models[[16]] <- dispmodel.Sex <- glm(Disperser ~ Sex, data = disp.input, family = "binomial")
+cand.models[[17]] <- dispmodel.AgeSex <- glm(Disperser ~ Age*Sex, data = disp.input, family = "binomial")
+cand.models[[18]] <- dispmodel.Dev2Ag2 <- glm(Disperser ~ poly(Developed,2) + poly(Agriculture,2), data = disp.input, family = "binomial")
+
 
 aictab(cand.set = cand.models)
 
