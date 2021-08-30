@@ -191,7 +191,7 @@ disp.input <- merge(town.covs, ind.covs, by = "BirdID", all.x = T) %>%
          Age = as.factor(Age))
 
 write.csv(disp.input, "DispProp_input.csv", row.names = F)
-
+disp.input <- read.csv("DispProp_input.csv")
 #################################################################################################################
 ### RUN MODELS AND MODEL SELECTION ###
 #################################
@@ -215,69 +215,84 @@ cand.models[[15]] <- dispmodel.Age <- glm(Disperser ~ Age, data = disp.input, fa
 cand.models[[16]] <- dispmodel.Sex <- glm(Disperser ~ Sex, data = disp.input, family = "binomial")
 cand.models[[17]] <- dispmodel.AgeSex <- glm(Disperser ~ Age*Sex, data = disp.input, family = "binomial")
 cand.models[[18]] <- dispmodel.Dev2Ag2 <- glm(Disperser ~ poly(Developed,2) + poly(Agriculture,2), data = disp.input, family = "binomial")
+cand.models[[19]] <- dispmodel.DevSex <- glm(Disperser ~ Developed*Sex, data = disp.input, family = "binomial")
+cand.models[[20]] <- dispmodel.AgSex <- glm(Disperser ~ Agriculture*Sex, data = disp.input, family = "binomial")
+cand.models[[21]] <- dispmodel.WetSex <- glm(Disperser ~ Wetland*Sex, data = disp.input, family = "binomial")
+cand.models[[22]] <- dispmodel.GrassSex <- glm(Disperser ~ Grassland*Sex, data = disp.input, family = "binomial")
+cand.models[[23]] <- dispmodel.RoadSex <- glm(Disperser ~ Road_KM*Sex, data = disp.input, family = "binomial")
+cand.models[[24]] <- dispmodel.Dev2Sex <- glm(Disperser ~ Developed + I(Developed^2) + Sex + Sex*Developed + Sex*I(Developed^2), data = disp.input, family = "binomial")
+cand.models[[25]] <- dispmodel.Ag2Sex <- glm(Disperser ~ Agriculture + I(Agriculture^2) + Sex + Sex*Agriculture + Sex*I(Agriculture^2), data = disp.input, family = "binomial")
+cand.models[[26]] <- dispmodel.Wet2Sex <- glm(Disperser ~ Wetland + I(Wetland^2) + Sex + Sex*Wetland + Sex*I(Wetland^2), data = disp.input, family = "binomial")
+cand.models[[27]] <- dispmodel.Grass2Sex <- glm(Disperser ~ Grassland + I(Grassland^2) + Sex + Sex*Grassland + Sex*I(Grassland^2), data = disp.input, family = "binomial")
+cand.models[[28]] <- dispmodel.Road2Sex <- glm(Disperser ~Road_KM + I(Road_KM^2) + Sex + Sex*Road_KM + Sex*I(Road_KM^2), data = disp.input, family = "binomial")
 
 
 aictab(cand.set = cand.models)
+summary(cand.models[[28]])
 
-### Developed^2
-summary(dispmodel.Dev2)
-pred.data <- data.frame(Developed = seq(min(disp.input$Developed),max(disp.input$Developed), .01))
-disp.prop.predict <- predict(dispmodel.Dev2, pred.data, se.fit = T, interval = "confidence")
+### Developed^2*Sex
+summary(dispmodel.Dev2Sex)
+pred.data <- data.frame(Developed = rep(seq(min(disp.input$Developed),max(disp.input$Developed), .01),2),
+                        Sex = c(rep("M", length(seq(min(disp.input$Developed),max(disp.input$Developed), .01))),
+                                rep("F", length(seq(min(disp.input$Developed),max(disp.input$Developed), .01)))))
+disp.prop.predict <- predict(dispmodel.Dev2Sex, pred.data, se.fit = T, interval = "confidence")
 pred.data$Est <- disp.prop.predict$fit
 pred.data$SE <- disp.prop.predict$se.fit
 outputs.dev <- pred.data %>% mutate(Mean = exp(Est)/(1+exp(Est)),
                                 LCL = exp(Est-SE)/(1+exp(Est-SE)),
                                 UCL = exp(Est+SE)/(1+exp(Est+SE)))
 
-DP.dev.plot <- ggplot(data = outputs.dev) +
-  geom_line(aes(x = Developed, y = Mean)) +
-  geom_line(aes(x = Developed, y = LCL), linetype = "dashed") +
-  geom_line(aes(x = Developed, y = UCL), linetype = "dashed") +
+DP.dev.plot <- ggplot(data = outputs.dev, group = Sex) +
+  geom_line(aes(x = Developed, y = Mean, color = Sex)) +
+  geom_line(aes(x = Developed, y = LCL, color = Sex), linetype = "dashed") +
+  geom_line(aes(x = Developed, y = UCL, color = Sex), linetype = "dashed") +
+  geom_point(data = disp.input, aes(x = Developed, color = Sex, y = Disperser), position = "dodge") +
   theme_classic() +
-  labs(x = "Proportion Developed", y = "Probability of Dispersal") +
-  ylim(0,.8)
+  labs(x = "Proportion Developed", y = "Probability of Dispersal")
 
 ### Road
 summary(dispmodel.Road)
-pred.data <- data.frame(Road_KM = seq(min(disp.input$Road_KM),max(disp.input$Road_KM), 1))
-disp.prop.predict <- predict(dispmodel.Road, pred.data, se.fit = T, interval = "confidence")
+pred.data <- data.frame(Road_KM = rep(seq(min(disp.input$Road_KM),max(disp.input$Road_KM), 1),2),
+                        Sex = c(rep("M", length(seq(min(disp.input$Road_KM),max(disp.input$Road_KM), 1))),
+                                rep("F", length(seq(min(disp.input$Road_KM),max(disp.input$Road_KM), 1)))))
+disp.prop.predict <- predict(dispmodel.RoadSex, pred.data, se.fit = T, interval = "confidence")
 pred.data$Est <- disp.prop.predict$fit
 pred.data$SE <- disp.prop.predict$se.fit
 outputs.dev <- pred.data %>% mutate(Mean = exp(Est)/(1+exp(Est)),
                                     LCL = exp(Est-SE)/(1+exp(Est-SE)),
                                     UCL = exp(Est+SE)/(1+exp(Est+SE)))
 
-DP.road.plot <- ggplot(data = outputs.dev) +
-  geom_line(aes(x = Road_KM, y = Mean)) +
-  geom_line(aes(x = Road_KM, y = LCL), linetype = "dashed") +
-  geom_line(aes(x = Road_KM, y = UCL), linetype = "dashed") +
+DP.road.plot <- ggplot(data = outputs.dev, group = Sex) +
+  geom_line(aes(x = Road_KM, y = Mean, color = Sex)) +
+  geom_line(aes(x = Road_KM, y = LCL, color = Sex), linetype = "dashed") +
+  geom_line(aes(x = Road_KM, y = UCL, color = Sex), linetype = "dashed") +
+  geom_point(data = disp.input, aes(x = Road_KM, color = Sex, y = Disperser), position = "dodge") +
   theme_classic() +
   labs(x = "Road (km)", y = element_blank()) +
-  ylim(0,.8)
+  theme(legend.position = "none")
 
-### Agriculture^2
-summary(dispmodel.Ag2)
-pred.data <- data.frame(Agriculture = seq(min(disp.input$Agriculture),max(disp.input$Agriculture), .01))
-disp.prop.predict <- predict(dispmodel.Ag2, pred.data, se.fit = T, interval = "confidence")
-pred.data$Est <- disp.prop.predict$fit
-pred.data$SE <- disp.prop.predict$se.fit
-outputs.dev <- pred.data %>% mutate(Mean = exp(Est)/(1+exp(Est)),
-                                    LCL = exp(Est-SE)/(1+exp(Est-SE)),
-                                    UCL = exp(Est+SE)/(1+exp(Est+SE)))
-
-DP.ag.plot <- ggplot(data = outputs.dev) +
-  geom_line(aes(x = Agriculture, y = Mean)) +
-  geom_line(aes(x = Agriculture, y = LCL), linetype = "dashed") +
-  geom_line(aes(x = Agriculture, y = UCL), linetype = "dashed") +
-  theme_classic() +
-  labs(x = "Proportion Agriculture", y = element_blank()) +
-  ylim(0,.8)
+# ### Agriculture^2
+# summary(dispmodel.Ag2)
+# pred.data <- data.frame(Agriculture = seq(min(disp.input$Agriculture),max(disp.input$Agriculture), .01))
+# disp.prop.predict <- predict(dispmodel.Ag2, pred.data, se.fit = T, interval = "confidence")
+# pred.data$Est <- disp.prop.predict$fit
+# pred.data$SE <- disp.prop.predict$se.fit
+# outputs.dev <- pred.data %>% mutate(Mean = exp(Est)/(1+exp(Est)),
+#                                     LCL = exp(Est-SE)/(1+exp(Est-SE)),
+#                                     UCL = exp(Est+SE)/(1+exp(Est+SE)))
+# 
+# DP.ag.plot <- ggplot(data = outputs.dev) +
+#   geom_line(aes(x = Agriculture, y = Mean)) +
+#   geom_line(aes(x = Agriculture, y = LCL), linetype = "dashed") +
+#   geom_line(aes(x = Agriculture, y = UCL), linetype = "dashed") +
+#   theme_classic() +
+#   labs(x = "Proportion Agriculture", y = element_blank())
 
 ### Group Plots
 require(patchwork)
 
-top.model.plots <- DP.dev.plot + DP.road.plot + DP.ag.plot +
-  plot_annotation(tag_levels = 'A') + plot_layout(ncol = 3)
+top.model.plots <- DP.dev.plot + DP.road.plot + 
+  plot_annotation(tag_levels = 'A') + plot_layout(ncol = 2)
 
 ggsave(top.model.plots, file = "./Results/DispersalPropensity_topmodels.jpg",
-       height = 5, width = 12)
+       height = 5, width = 8)
