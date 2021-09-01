@@ -94,7 +94,7 @@ for(ogbird in 73:nrow(sim.turkey)){
                                })
   )
   sim.output <- do.call("bind_rows", sim.output.list)
-  filelocation <- paste("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/CalSims_OGBird", ogbird, "Set", 1, ".csv", sep = "_")
+  filelocation <- paste("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/CalSims_OGBird", ogbird, "Set", 2, ".csv", sep = "_")
   write.csv(sim.output, filelocation, append = T)
   parallel::stopCluster(cl = my.cluster)
 }
