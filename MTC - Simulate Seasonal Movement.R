@@ -57,11 +57,11 @@ for(i in 1:nrow(obs.paths)){
 #DataFrame with 
 sim.turkey <- do.call(rbind.data.frame, sim.turkey.list) %>%
   mutate(p = runif(N.simturk*length(sim.turkey.list), .1, 5),
-         rho = runif(N.simturk*length(sim.turkey.list), 0.0000000000001, 0.26868487 + (10*0.01281980)),
+         rho = runif(N.simturk*length(sim.turkey.list), 0.0000000000001, 0.26868487 + (20*0.01281980)),
          # mu = runif(N.simturk*length(sim.turkey.list), 0.08464538 - (2*0.04287019), 0.08464538 + (2*0.04287019)),
          mu = rep(0, N.simturk*length(sim.turkey.list)),
-         k = runif(N.simturk*length(sim.turkey.list), 0.84834637 - (10*1.744392e-02), 0.84834637 + (10*1.744392e-02)),
-         rate = runif(N.simturk*length(sim.turkey.list), 0.00311007 - (10*7.517423e-05), 0.00311007 + (10*7.517423e-05))) %>% 
+         k = runif(N.simturk*length(sim.turkey.list), 0.84834637 - (20*1.744392e-02), 0.84834637 + (20*1.744392e-02)),
+         rate = runif(N.simturk*length(sim.turkey.list), 0.00311007 - (20*7.517423e-05), 0.00311007 + (20*7.517423e-05))) %>% 
   mutate(R = qgamma(.95, shape = k, scale = 1/rate)) %>%
   rename(Long = StartX, Lat = StartY) %>% 
   mutate(Step = 0)
@@ -75,7 +75,7 @@ source("./MTC - Simulation Functions.R")
 lapply(c("parallel"), require, character.only = TRUE)
 
 ### parLapply version
-for(ogbird in 23:nrow(sim.turkey)){
+for(ogbird in 73:nrow(sim.turkey)){
   # Sampling distance is dependent on observation type (Harvest vs Nest)
   # end.dist <- ifelse(obs.paths$ObsType[ogbird] == "H", 6852.906, 1922.514) #Distance simulation needs to be to end point to conclude individual simulation
   
