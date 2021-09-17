@@ -169,79 +169,18 @@ settled.towns <- data.frame(Town = unlist(townnames.overlap),
 townlist <- unique(c(settled.towns$Town))
 town.reduce <- townbound %>% filter(Town %in% townlist)
 
-#NLCD
-NLCDrast <- raster("E:/Maine Drive/GIS/NLCD_2016_Land_Cover_L48_20190424/NLCD_2016_Land_Cover_L48_20190424.img")
-# NLCDrast <- projectRaster(NLCDrast, crs = 4326)
+towncovs <- st_read("./GIS/TownCovs.shp") %>%
+  rename(Developed = Develpd, Agriculture = Agrcltr, Grassland = Grsslnd, Connectance = Cnnctnc)
 
-town_extract <- raster::extract(NLCDrast, town.reduce) #creates a list for each polygon of all the cell values within it
-
-town_proportions <- lapply(town_extract, FUN= function(x){prop.table(table(x))}) #this returns proportion of each as a list
-names(town_proportions) <- town.reduce$Town
-rbind.fill <- function(x) {
-  nam <- sapply(x, names)
-  unam <- unique(unlist(nam))
-  len <- sapply(x, length)
-  out <- vector("list", length(len))
-  for (i in seq_along(len)) {
-    out[[i]] <- unname(x[[i]])[match(unam, nam[[i]])]
-  }
-  setNames(as.data.frame(do.call(rbind, out), stringsAsFactors=FALSE), unam)
-}
-town_percentcover <- rbind.fill(town_proportions) #dataframe of proportions, but no names for columns
-colnames(town_percentcover) <- paste("ID", colnames(town_percentcover), sep = "" )
-town_percentcover[is.na(town_percentcover)] <- 0
-town_percentcover <- town_percentcover %>% 
-  mutate(Developed = ID21 + ID22 + ID23 + ID24) %>%
-  mutate(Agriculture = ID81 + ID82) %>%
-  mutate(Wetland = ID90 + ID95) %>%
-  mutate(Grassland = ID71) %>%
-  dplyr::select(Developed, Agriculture, Wetland, Grassland)
-
-
-town.covs1 <- cbind(town.reduce, town_percentcover)
-
-#Roads
-Roadslines <- st_combine(st_read("E:/Maine Drive/GIS/Roads/medotpubrds.shp")) %>% 
-  st_transform(4326)
-roadsclipped <- st_intersection(Roadslines, town.reduce)
-roadbytown <- st_join(st_as_sf(roadsclipped), town.reduce, st_intersects) %>%
-  st_drop_geometry() %>%
-  arrange(Town)
-roadlength.km <- st_length(roadsclipped)/1000
-
-poly = st_as_sf(town.reduce)
-line = st_as_sf(Roadslines)
-# intersection
-int = st_intersection(line, poly)
-# find out about the length of each line segment
-int$len = st_length(int)
-# use a meaningful id (so far consists only of 0s)
-poly$Id = 1:nrow(poly)
-# spatial overlay
-join = st_join(poly, st_as_sf(int))
-# use the ID of the polygon for the aggregation
-out = group_by(join, Town.x) %>%
-  summarize(length = sum(len))
-# find out about polygons without line segments 
-filter(out, is.na(length))
-# you can set the length of the polygons without line intersections to 0 
-# if you want
-
-roadbytown <- st_drop_geometry(out) %>% 
-  mutate(length = ifelse(is.na(length), 0, length)) %>%
-  mutate(length = length/1000) %>% 
-  rename(Town = Town.x, Road_KM = length)
-
-towns.covs2 <- merge(town.covs1, roadbytown, by = "Town", all.x = T)
-
-#Lat/Long
-
-town.covs3 <- cbind(towns.covs2, st_coordinates(st_transform(st_centroid(town.reduce), 32619))[,1:2])
-
-
-settle.input <- merge(settled.towns, town.covs3, by = "Town", all.x = T) %>%
+ind.covs1 <- merge(settled.towns, towncovs, by = "Town", all.x = T) %>%
   dplyr::select(-geometry, -Town, -ID) %>%
   arrange(BirdID, desc(Settled))
+
+# Sex
+sex.cov <- trap.slim %>% dplyr::select(BirdID, Sex)
+settle.input <- merge(ind.covs1, sex.cov, by = "BirdID", all.x = T) %>%
+  filter(!is.na(Developed))
+
 
 write.csv(settle.input, "SettDesc_input.csv", row.names = F)
 
@@ -252,6 +191,8 @@ write.csv(settle.input, "SettDesc_input.csv", row.names = F)
 require(survival)
 require(AICcmodavg)
 settle.input <- read.csv("SettDesc_input.csv")
+# settle.input[,3:12] <- sapply(3:12, FUN = function(x){scale(settle.input[,x], center = T, scale = T)})
+
 
 cand.models <- list()
 cand.models[[1]] <- settmodel.null <- clogit(Settled ~ strata(BirdID), settle.input)
@@ -268,7 +209,29 @@ cand.models[[11]] <- settmodel.Ag2 <- clogit(Settled ~ poly(Agriculture,2) + str
 cand.models[[12]] <- settmodel.Wet2 <- clogit(Settled ~ poly(Wetland,2) + strata(BirdID), settle.input)
 cand.models[[13]] <- settmodel.Grass2 <- clogit(Settled ~ poly(Grassland,2) + strata(BirdID), settle.input)
 cand.models[[14]] <- settmodel.Road2 <- clogit(Settled ~ poly(Road_KM,2) + strata(BirdID), settle.input)
-cand.models[[15]] <- settmodel.Full <- clogit(Settled ~  poly(Agriculture,2) + Developed + poly(Wetland,2) + strata(BirdID), settle.input)
+cand.models[[15]] <- settmodel.DevSex <- clogit(Settled ~ Developed*Sex + strata(BirdID), settle.input)
+cand.models[[16]] <- settmodel.AgSex <- clogit(Settled ~ Agriculture*Sex + strata(BirdID), settle.input)
+cand.models[[17]] <- settmodel.WetSex <- clogit(Settled ~ Wetland*Sex + strata(BirdID), settle.input)
+cand.models[[18]] <- settmodel.GrassSex <- clogit(Settled ~ Grassland*Sex + strata(BirdID), settle.input)
+cand.models[[19]] <- settmodel.RoadSex <- clogit(Settled ~ Road_KM*Sex + strata(BirdID), settle.input)
+cand.models[[20]] <- settmodel.Dev2Sex <- clogit(Settled ~ Developed + I(Developed^2) + Sex + Developed*Sex +I(Developed^2)*Sex + strata(BirdID), settle.input)
+cand.models[[21]] <- settmodel.Ag2Sex <- clogit(Settled ~ Agriculture + I(Agriculture^2) + Sex + Agriculture*Sex +I(Agriculture^2)*Sex + strata(BirdID), settle.input)
+cand.models[[22]] <- settmodel.Wet2Sex <- clogit(Settled ~ Wetland + I(Wetland^2) + Sex + Wetland*Sex +I(Wetland^2)*Sex + strata(BirdID), settle.input)
+cand.models[[23]] <- settmodel.Grass2Sex <- clogit(Settled ~ Grassland + I(Grassland^2) + Sex + Grassland*Sex +I(Grassland^2)*Sex + strata(BirdID), settle.input)
+cand.models[[24]] <- settmodel.Road2Sex <- clogit(Settled ~ Road_KM + I(Road_KM^2) + Sex + Road_KM*Sex +I(Road_KM^2)*Sex + strata(BirdID), settle.input)
+cand.models[[25]] <- settmodel.Full <- clogit(Settled ~  poly(Agriculture,2) + Developed + poly(Wetland,2) + strata(BirdID), settle.input)
+cand.models[[26]] <- settmodel.AgInd <- clogit(Settled ~ Ag_Indx + strata(BirdID), settle.input)
+cand.models[[27]] <- settmodel.Connect <- clogit(Settled ~ Connectance + strata(BirdID), settle.input)
+cand.models[[28]] <- settmodel.EdgeDens <- clogit(Settled ~ Edg_Dns + strata(BirdID), settle.input)
+cand.models[[29]] <- settmodel.AgInd2 <- clogit(Settled ~ poly(Ag_Indx,2) + strata(BirdID), settle.input)
+cand.models[[30]] <- settmodel.Connect2 <- clogit(Settled ~ poly(Connectance,2) + strata(BirdID), settle.input)
+cand.models[[31]] <- settmodel.EdgeDens2 <- clogit(Settled ~ poly(Edg_Dns,2) + strata(BirdID), settle.input)
+cand.models[[32]] <- settmodel.AgIndSex <- clogit(Settled ~ Ag_Indx*Sex + strata(BirdID), settle.input)
+cand.models[[33]] <- settmodel.ConnectSex <- clogit(Settled ~ Connectance*Sex + strata(BirdID), settle.input)
+cand.models[[34]] <- settmodel.EdgeDensSex <- clogit(Settled ~ Edg_Dns*Sex + strata(BirdID), settle.input)
+cand.models[[35]] <- settmodel.AgInd2Sex <- clogit(Settled ~ Ag_Indx + I(Ag_Indx^2) + Sex + Ag_Indx*Sex +I(Ag_Indx^2)*Sex + strata(BirdID), settle.input)
+cand.models[[36]] <- settmodel.Connect2Sex <- clogit(Settled ~ Connectance + I(Connectance^2) + Sex + Connectance*Sex +I(Connectance^2)*Sex + strata(BirdID), settle.input)
+cand.models[[37]] <- settmodel.EdgeDens2Sex <- clogit(Settled ~ Edg_Dns + I(Edg_Dns^2) + Sex + Edg_Dns*Sex +I(Edg_Dns^2)*Sex + strata(BirdID), settle.input)
 
 aictab(cand.set = cand.models)
 
