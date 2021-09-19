@@ -36,8 +36,22 @@ for(i in 1:nrow(wmdbound)){
   }
 }
 
+#Load Posterior Distributions for hyperparameters
+source("./MTC - Rejection Sampling Posteriors.R")
+
 # Select Movement behaviors according to calibrated parameter distributions
-startlocs.sf %>%
+startlocs.df <- startlocs.sf %>% 
+  mutate(StartX = st_coordinates(startlocs.sf)[,1],
+         StartY = st_coordinates(startlocs.sf)[,2], 
+         p = r_p(n=nrow(startlocs.sf)),
+         rho = r_rho(n=nrow(startlocs.sf)),
+         mu = 0,
+         k = r_k(n=nrow(startlocs.sf)),
+         rate = r_rate(n=nrow(startlocs.sf))) %>%
+  mutate(R = qgamma(.95, shape = k, scale = 1/rate)) %>%
+  st_drop_geometry() %>%
+  rename(Long = StartX, Lat = StartY, StartWMD = WMD) %>% 
+  mutate(Step = 0)
   
 
 ################################################################################################

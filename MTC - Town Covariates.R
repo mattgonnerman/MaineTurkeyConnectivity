@@ -7,8 +7,13 @@ townbound <- st_read("E:/Maine Drive/GIS/Maine_Town_and_Townships_Boundary_Polyg
   filter(ISLAND == "n") %>%
   filter(LAND == "y") %>%
   dplyr::select(Town = TOWN) %>%
-  st_transform(crs(forestbin))
+  st_transform(32619)
 
+#Create Hexagonal Grid with area == to 95% Quantile of prenesting home range size
+hexsize <- 2*units::drop_units((mean(st_area(townbound))/pi)^(1/2))
+
+hexgrid <- st_as_sf(st_make_grid(townbound, cellsize = hexsize, what = "polygons", square = F, crs = crs(townbound))) %>%
+  mutate(GridID = paste("Grid", rownames(.), sep = "_"))
 
 #NLCD
 NLCDrast <- raster("E:/GitHub/NestHabitatQuality/GIS/NLCD_clipped.tif")
