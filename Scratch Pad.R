@@ -22,4 +22,4 @@ dec.output <- data.frame(ID = 1,
 location <- test2 <- cbind(test1, dec.output)
 raster <- HS_day
 
-sim.decision(test2, HS_day, 130, 1)
+x <- sim.decision(test2, HS_day, 130, 1)

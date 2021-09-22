@@ -3,7 +3,7 @@
 ####################################
 # Simulate turkey dispersals from capture locations
 
-for(set in 14){
+for(set in 6){
   ### Load Packages
   lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, character.only = TRUE)
   
