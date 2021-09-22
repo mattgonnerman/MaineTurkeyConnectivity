@@ -3,7 +3,7 @@
 ####################################
 # Simulate turkey dispersals from capture locations
 
-for(set in 14){
+for(set in 10){
   ### Load Packages
   lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, character.only = TRUE)
   
@@ -58,11 +58,11 @@ for(set in 14){
   #DataFrame with 
   sim.turkey <- do.call(rbind.data.frame, sim.turkey.list) %>%
     mutate(p = runif(N.simturk*length(sim.turkey.list), .1, 5),
-           rho = runif(N.simturk*length(sim.turkey.list), 0.0000000000001, 0.26868487 + (20*0.01281980)),
+           rho = runif(N.simturk*length(sim.turkey.list), 0.0000000000001, 0.26868487 + (40*0.01281980)),
            # mu = runif(N.simturk*length(sim.turkey.list), 0.08464538 - (2*0.04287019), 0.08464538 + (2*0.04287019)),
            mu = rep(0, N.simturk*length(sim.turkey.list)),
-           k = runif(N.simturk*length(sim.turkey.list), 0.84834637 - (20*1.744392e-02), 0.84834637 + (20*1.744392e-02)),
-           rate = runif(N.simturk*length(sim.turkey.list), 0.00311007 - (20*7.517423e-05), 0.00311007 + (20*7.517423e-05))) %>% 
+           k = runif(N.simturk*length(sim.turkey.list), 0.84834637 - (40*1.744392e-02), 0.84834637 + (40*1.744392e-02)),
+           rate = runif(N.simturk*length(sim.turkey.list), 0.00311007 - (40*7.517423e-05), 0.00311007 + (40*7.517423e-05))) %>% 
     mutate(R = qgamma(.95, shape = k, scale = 1/rate)) %>%
     rename(Long = StartX, Lat = StartY) %>% 
     mutate(Step = 0)
@@ -87,13 +87,13 @@ for(set in 14){
     )
     clusterEvalQ(my.cluster, {lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, character.only = TRUE)})
     clusterExport(my.cluster, c("sim.turkey", "N.steps.max", "HS_day", "HS_roost"))
-    system.time(
-      sim.output.list <- parLapply(cl = my.cluster, X = (N.simturk*(ogbird-1)+1):(N.simturk*(ogbird)),
-                                   function(simbird) {
-                                     source("./MTC - Simulation Functions.R")
-                                     sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
-                                   })
-    )
+
+    sim.output.list <- parLapply(cl = my.cluster, X = (N.simturk*(ogbird-1)+1):(N.simturk*(ogbird)),
+                                 function(simbird) {
+                                   source("./MTC - Simulation Functions.R")
+                                   sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
+                                 })
+    
     sim.output <- do.call("bind_rows", sim.output.list)
     filelocation <- paste("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/CalSims_OGBird", ogbird, "Set", set, ".csv", sep = "_")
     write.csv(sim.output, filelocation, append = T)
