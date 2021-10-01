@@ -1,16 +1,48 @@
+
+N.steps.max <- 15*30 #15 steps * number of days
+
+########################################################################################################################
 ### Joint Function to simulate turkey movements between WMDs
 simwmdconnect <- function(x){
+  
   startmove <- simstartmove(x)
 
   if(startmove == 0){
-    #Turkey does no leave winter range
-    randwithintown(x)
+    #Turkey DOES NOT leave winter range
+    finalloc <- randwithinhex(x)
     
+    start.dec.output <- data.frame(ID = 1,
+                             CellID = NA, 
+                             HS = NA,
+                             D = NA,
+                             x = x$Long[1],
+                             y = x$Lat[1],
+                             B = runif(1, 0, 360), 
+                             TurnA = runif(1, -pi, pi),
+                             W = NA)
+    start.output.df <- cbind(x, start.dec.output)
+    end.dec.output <- data.frame(ID = 2,
+                             CellID = NA, 
+                             HS = NA,
+                             D = NA,
+                             x = finalloc[1],
+                             y = finalloc[2],
+                             B = runif(1, 0, 360), 
+                             TurnA = runif(1, -pi, pi),
+                             W = NA)
+    end.output.df <- cbind(x, end.dec.output)
+    turkeytrack <- rbind(start.output.df, end.output.df)
   }else{
-    #Begin Simulation
-    sim.disperse.wmd(x, HS_day, HS_roost)
+    #Turkey DOES leave winter range
+    point <- st_point(c(x$Long[1], x$Lat[1]))
+    lasthex <- hexcovs[point,]$GridID[1] 
+    
+    turkeytrack <- sim.disperse.wmd(x, HS_day, HS_roost)
     
   }
+  
+  return(turkeytrack)
+  
 }
 
 
@@ -19,10 +51,11 @@ simwmdconnect <- function(x){
 simstartmove <-function(x){
   #Get covariates from town that intersects start location
   point <- st_point(c(x$Long[1], x$Lat[1]))
-  towncov <- towncovs[point,] 
+  hexcov <- hexcovs[point,] 
   
   #Return 1 or 0
-  startmove <- rbinom(1,1, towncov$startmove.M[1])
+  startmove <- rbinom(1,1,
+                      ifelse(x$Sex[1] == "M", hexcov$DispProbM[1], hexcov$DispProbF[1]))
   return(startmove)
 }
 
@@ -44,20 +77,27 @@ sim.disperse.wmd <- function(startpoint.df, rasterday, rasterroost){
   for(i in 1:N.steps.max){
     if(i %% 15 == 0){
       step.decision <- sim.decision(output.df[i,], rasterroost, output.df$B[i], i)
-      output.df[i+1,] <- cbind(output.df[i,1:13], step.decision) %>% mutate(Step = Step +1)
+      output.df[i+1,] <- cbind(output.df[i,1:11], step.decision) %>% mutate(Step = Step +1)
       output.df$D2End[i+1] <- abs(pointDistance(c(output.df$x[i+1],output.df$y[i+1]), 
                                                 c(output.df$EndX[i+1], output.df$EndY[i+1]), lonlat = F))
     }else{
       step.decision <- sim.decision(output.df[i,], rasterday, output.df$B[i], i)
-      output.df[i+1,] <- cbind(output.df[i,1:13], step.decision) %>% mutate(Step = Step +1)
+      output.df[i+1,] <- cbind(output.df[i,1:11], step.decision) %>% mutate(Step = Step +1)
       output.df$D2End[i+1] <- abs(pointDistance(c(output.df$x[i+1],output.df$y[i+1]), 
                                                 c(output.df$EndX[i+1], output.df$EndY[i+1]), lonlat = F))
     }
     
-    stop <- settle.decision(step.decision)
+    point <- st_point(c(step.decision$x[1], step.decision$y[1]))
+    newhex <- hexcovs[point,]$GridID[1]
     
-    if(stop$Settle == 1){
-      break
+    if(lasthex != newhex){
+      stop <- settle.decision(output.df[i+1,])
+      
+      if(stop$Settle == 1){
+        break
+      }else{
+        lasthex <- newhex 
+      }
     }
   }
   return(output.df)
@@ -109,6 +149,25 @@ sim.decision <- function(location, raster, prev.bear, i){
 
 
 ########################################################################################################################
+### If a bird doesn't have a roosting location near it when its time to roost (within R), 
+### then sample all forested areas within an expanded radius and use distance as weights
+nearest.tree <- function(location, raster){
+  increased.R <- 2000
+  options <- as.data.frame(extract(raster, location[,c("x", "y")], buffer = increased.R, cellnumbers = T, df = T)) %>%
+    rename(HS = layer, CellID = cells)
+  D.raster <- raster::distanceFromPoints(rasterFromCells(raster, options$CellID), location[,c("x", "y")])
+  options$D <- as.data.frame(extract(D.raster, location[,c("x", "y")], buffer = increased.R, cellnumbers = T, df = T))[,3]
+  options <- options %>% 
+    mutate(D = ifelse(is.na(D), 0, D),
+           HS = ifelse(is.na(HS), 0, HS)) %>%
+    mutate(W = ifelse(HS == 0, 0, 1/D)) %>%
+    mutate(W = ifelse(is.na(W), 0, W),
+           W = ifelse(W < 0, 0, W),
+           W = ifelse(D < 1, 0, W))
+  return(options)
+}
+
+########################################################################################################################
 ### Function to calculate the weight of a raster cell for sim.decision
 cell.selection.w <- function(H, D, TA, p, k, rate, mu, rho){
   HS <- H^(exp(p) - 1) 
@@ -123,37 +182,30 @@ cell.selection.w <- function(H, D, TA, p, k, rate, mu, rho){
 # Determine if Turkey ceases movement
 settle.decision <- function(x){
   #Get covariates from town that intersects start location
-  point <- st_point(c(x$Long[1], x$Lat[1]))
-  towncov <- towncovs[point,] %>% st_drop_geometry() %>%
-    dplyr::select(Developed = Develpd, Agriculture = Agrcltr, Wetland) %>%
-    mutate(Settled = 1,
-           BirdID = settle.input$BirdID[100],
-           Wetland = (Wetland - mean(disp.input.raw$Wetland))/sd(disp.input.raw$Wetland),
-           Developed = (Developed - mean(disp.input.raw$Developed))/sd(disp.input.raw$Developed),
-           Agriculture = (Agriculture - mean(disp.input.raw$Agriculture))/sd(disp.input.raw$Agriculture))
+  point <- st_point(c(x$x[1], x$y[1]))
+  lasthex <- hexcovs[point,]$GridID[1] 
   
-  #Create Bernoulli Trial
-  explr <- predict(settmodel.Final, newdata =  towncov, type = "expected")
+  hexcov <- hexcovs[point,]
   
   #Return 1 or 0
-  startmove <- rbinom(1,1, explr)
-  return(startmove)
-  
-  
+  stopmove <- rbinom(1,1, 
+                     ifelse(x$Sex[1] == "M", hexcov$SettleProbM[1], hexcov$SettleProbF[1]))
+  return(stopmove)
 }
 
   
 ########################################################################################################################
 #Select random location within town boundaries for final destination of turkey
-randwithintown <- function(x){
-  point1 <- st_point(c(x$x[1], x$y[1]))
-  townbound <- towncovs[point1,]
+randwithinhex <- function(x){
+  point1 <- st_point(c(x$Long[1], x$Lat[1]))
+  hexbound <- hexcovs[point1,]
   
-  points.df <- as.data.frame(sampleRandom(forbin.rast, 10, ext = extent(townbound),
+  points.df <- as.data.frame(sampleRandom(forbin.rast, 100, ext = extent(hexbound),
                                           na.rm = T, xy = T))
   points.sf <- st_as_sf(points.df, coords = c("x", "y"), crs = crs(wmdbound)) %>%
-    st_join(., townbound, join = st_intersects) %>%
-    filter(Town == townbound$Town[1]) %>%
+    st_join(., hexbound, join = st_intersects) %>%
+    filter(GridID == hexbound$GridID[1]) %>%
+    filter(FullForestBin == 1) %>%
     slice(1)
   
   

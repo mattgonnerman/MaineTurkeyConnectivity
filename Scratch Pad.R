@@ -7,7 +7,6 @@ simstartmove(test1)
 
 randwithintown(test1)
 
-sim.decision(test1, HS_day, 130, 1)
 
 dec.output <- data.frame(ID = 1,
                          CellID = NA, 
@@ -22,4 +21,9 @@ dec.output <- data.frame(ID = 1,
 location <- test2 <- cbind(test1, dec.output)
 raster <- HS_day
 
-x <- sim.decision(test2, HS_day, 130, 1)
+step.decision <- x <- sim.decision(test2, HS_day, 130, 1)
+test3 <- cbind(test2[1,1:11], step.decision) %>% mutate(Step = Step +1)
+
+
+settle.decision(test3)
+

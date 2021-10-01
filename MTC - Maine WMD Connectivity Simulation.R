@@ -8,6 +8,8 @@ source("./MTC - WMD Connectivity Functions.R")
 ################################################################################################
 ### Load and Prepare Data
 forbin.rast <- raster("./GIS/ExtendedRasters/FullForestBin.tif")
+# forbin.rast <- trim(forbin.rast, values = 0)
+# writeRaster(forbin.rast, "./GIS/ExtendedRasters/FullForestBin.tif", overwrite = T)
 wmdbound <- st_read("E:/Maine Drive/GIS/wildlife_mgmt_districts2/wildlife_mgmt_districts.shp") %>%
   dplyr::select(WMD = IDENTIFIER) %>%
   arrange(WMD) %>%
@@ -24,6 +26,11 @@ source("./MTC - Settling Selection.R")
 #Get Hex specific settling and dispersal decision probability
 hexdispprob <- read.csv("HexCov_Disp.csv")
 hexsettleprob <- read.csv("HexCov_Settle.csv")
+hexcovs.raw <- st_read("./GIS/HexCovs.shp") %>%
+  st_transform(crs(forbin.rast))
+
+hexcovs.1 <- merge(hexcovs.raw, hexdispprob, by = "GridID", all.x = T)
+hexcovs <- merge(hexcovs.1, hexsettleprob, by = "GridID", all.x = T)
 
 #Habitat Suitability Surface
 HS_day <- raster("./GIS/ExtendedRasters/FullHS_Day.tif")
@@ -86,7 +93,7 @@ clusterExport(my.cluster, c("sim.turkey", "N.steps.max", "HS_day", "HS_roost"))
 
 sim.output.list <- parLapply(cl = my.cluster, X = (N.simturk*(ogbird-1)+1):(N.simturk*(ogbird)),
                              function(simbird) {
-                               source("./MTC - Simulation Functions.R")
+                               source("./MTC - WMD Connectivity Functions.R")
                                sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
                              })
 
