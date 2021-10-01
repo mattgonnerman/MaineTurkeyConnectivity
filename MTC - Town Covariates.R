@@ -106,7 +106,7 @@ hexbound <- st_as_sf(st_make_grid(townbound, cellsize = hexsize, what = "polygon
   mutate(GridID = paste("Grid", rownames(.), sep = "_"))
 
 #NLCD
-NLCDrast <- raster("E:/GitHub/NestHabitatQuality/GIS/NLCD_clipped.tif")
+NLCDrast <- raster("E:/GitHub/MaineTurkeyConnectivity/GIS/ExtendedRasters/FullLC.tif")
 
 hex_extract <- raster::extract(NLCDrast, hexbound) #creates a list for each polygon of all the cell values within it
 
@@ -126,23 +126,25 @@ hex_percentcover <- rbind.fill(hex_proportions) #dataframe of proportions, but n
 colnames(hex_percentcover) <- paste("ID", colnames(hex_percentcover), sep = "" )
 hex_percentcover[is.na(hex_percentcover)] <- 0
 hex_percentcover <- hex_percentcover %>% 
-  mutate(Developed = ID21 + ID22 + ID23 + ID24) %>%
-  mutate(Agriculture = ID81 + ID82) %>%
-  mutate(Wetland = ID90 + ID95) %>%
-  mutate(Grassland = ID71) %>%
-  dplyr::select(Developed, Agriculture, Wetland, Grassland)
+  rename(Forested = ID1,
+         Agriculture = ID2,
+         Developed = ID3,
+         Shrub = ID4,
+         Herbaceous = ID5,
+         Wetlands = ID6,
+         Water = ID7)
 
 
 hex.covs1 <- cbind(hexbound, hex_percentcover) %>%
   st_transform(crs(NLCDrast))
 
 #Roads
-Roadslines <- st_combine(st_read("E:/Maine Drive/GIS/Roads/medotpubrds.shp")) %>% 
+Roadslines <- st_combine(st_read("E:/GitHub/MaineTurkeyConnectivity/GIS/ExtendedRasters/FullRoads.shp")) %>% 
   st_transform(crs(hexbound))
 roadsclipped <- st_intersection(Roadslines, hexbound)
 roadbyhex <- st_join(st_as_sf(roadsclipped), hexbound, st_intersects) %>%
   st_drop_geometry() %>%
-  arrange(hex)
+  arrange(GridID)
 roadlength.km <- st_length(roadsclipped)/1000
 
 poly = st_as_sf(hexbound)
@@ -156,7 +158,7 @@ poly$Id = 1:nrow(poly)
 # spatial overlay
 join = st_join(poly, st_as_sf(int))
 # use the ID of the polygon for the aggregation
-out = group_by(join, Town.x) %>%
+out = group_by(join, GridID.x) %>%
   summarize(length = sum(len))
 # find out about polygons without line segments 
 filter(out, is.na(length))
@@ -166,27 +168,25 @@ filter(out, is.na(length))
 roadbytown <- st_drop_geometry(out) %>% 
   mutate(length = ifelse(is.na(length), 0, length)) %>%
   mutate(length = length/1000) %>% 
-  rename(Town = Town.x, Road_KM = length)
+  rename(GridID = GridID.x, Road_KM = length)
 
-towns.covs2 <- merge(town.covs1, roadbytown, by = "Town", all.x = T) %>% 
-  rename(StartTown = Town)
+hex.covs2 <- merge(hex.covs1, roadbytown, by = "GridID", all.x = T)
 
 #Lat/Long
 
-town.covs3 <- cbind(towns.covs2, st_coordinates(st_transform(st_centroid(towns.covs2), 32619))[,1:2])
+hex.covs3 <- cbind(hex.covs2, st_coordinates(st_transform(st_centroid(hex.covs2), 32619))[,1:2])
 
 #Landscape Metrics
-forestbin <- raster("./GIS/forestbinary/forestbinary.tif")
+forestbin <- raster("./GIS/ExtendedRasters/FullForestBin.tif")
 
-town.lsm <- sample_lsm(forestbin, townbound,
+hex.lsm <- sample_lsm(forestbin, hexbound,
                        level = "landscape", what = c("lsm_l_ai", "lsm_l_ed", "lsm_l_contag"))
-town.lsm <- as.data.frame(town.lsm) %>%
+hex.lsm <- as.data.frame(hex.lsm) %>%
   dplyr::select(metric, value, plot_id) %>%
   tidyr::pivot_wider(id_cols = plot_id, names_from = metric, values_from = value) %>%
   dplyr::select(-plot_id, Ag_Index = ai, Connectance = contag, Edge_Density = ed)
 
-town.lsm <- cbind(townbound, town.lsm)
-town.covs4 <- merge(town.covs3 %>% rename(Town = StartTown),
-                    town.lsm %>% st_drop_geometry(), by = "Town", all.x = T)
+hex.lsm <- cbind(hexbound, hex.lsm)
+hex.covs4 <- merge(hex.covs3 , hex.lsm %>% st_drop_geometry(), by = "GridID", all.x = T)
 
-st_write(town.covs4, "./GIS/TownCovs.shp")
+st_write(hex.covs4, "./GIS/HexCovs.shp")
