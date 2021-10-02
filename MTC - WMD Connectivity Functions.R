@@ -43,7 +43,8 @@ simwmdconnect <- function(x){
     
   }
   
-  write.table(turkeytrack, "WMDConnectSimTracks.csv", row.names = F, append = T)
+  write.table(turkeytrack, "WMDConnectSimTracks.csv", row.names = F,
+            append = T, sep = ",", col.names = !file.exists("WMDConnectSimTracks.csv"))
   # return(turkeytrack)
   
 }

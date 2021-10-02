@@ -108,7 +108,7 @@ sim.output.list <- lapply(X = 1:10, FUN = function(simbird) {
 })
 sim.output <- do.call("bind_rows", sim.output.list)
 
-lapply(X = 1:10, FUN = function(simbird) {
+lapply(X = 1:2, FUN = function(simbird) {
   source("./MTC - WMD Connectivity Functions.R")
   simwmdconnect(startlocs.df[simbird,])
 })
