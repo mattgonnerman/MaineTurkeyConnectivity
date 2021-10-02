@@ -1,6 +1,6 @@
 ################################################################################################
 ### Packages
-lapply(c("sf", "raster", "dplyr", "lubridate", "units", "CircStats"), require, character.only = T)
+lapply(c("sf", "raster", "dplyr", "lubridate", "units", "CircStats", "parallel"), require, character.only = T)
 
 ### Simulation Functions
 source("./MTC - WMD Connectivity Functions.R")
@@ -78,31 +78,40 @@ startlocs.df <- startlocs.sf %>%
   mutate(R = qgamma(.95, shape = k, scale = 1/rate)) %>%
   st_drop_geometry() %>%
   rename(Long = StartX, Lat = StartY, StartWMD = WMD) %>% 
-  mutate(Step = 0)
+  mutate(Step = 0) %>%
+  mutate(BirdID = row_number())
   
 
 ################################################################################################
 ### Simulate Movements
-n.cores <- parallel::detectCores() - 1
+n.cores <- parallel::detectCores() /2
 my.cluster <- parallel::makeCluster(
   n.cores, 
   type = "PSOCK"
 )
 clusterEvalQ(my.cluster, {lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, character.only = TRUE)})
-clusterExport(my.cluster, c("sim.turkey", "N.steps.max", "HS_day", "HS_roost"))
+clusterExport(my.cluster, c("startlocs.df", "hexcovs", "lasthex", "N.steps.max", "HS_day", "HS_roost", "forbin.rast"))
 
-sim.output.list <- parLapply(cl = my.cluster, X = (N.simturk*(ogbird-1)+1):(N.simturk*(ogbird)),
+sim.output.list <- parLapply(cl = my.cluster, X = 1:10,
                              function(simbird) {
                                source("./MTC - WMD Connectivity Functions.R")
-                               sim.disperse(sim.turkey[simbird,], HS_day, HS_roost)
+                               simwmdconnect(startlocs.df[simbird,])
                              })
-
-sim.output <- do.call("bind_rows", sim.output.list)
-filelocation <- paste("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/CalSims_OGBird", ogbird, "Set", set, ".csv", sep = "_")
-write.csv(sim.output, filelocation, append = T)
 parallel::stopCluster(cl = my.cluster)
+sim.output <- do.call("bind_rows", sim.output.list)
+# filelocation <- paste("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/CalSims_OGBird", ogbird, "Set", set, ".csv", sep = "_")
+# write.csv(sim.output, filelocation, append = T)
 
+sim.output.list <- lapply(X = 1:10, FUN = function(simbird) {
+  source("./MTC - WMD Connectivity Functions.R")
+  simwmdconnect(startlocs.df[simbird,])
+})
+sim.output <- do.call("bind_rows", sim.output.list)
 
+lapply(X = 1:10, FUN = function(simbird) {
+  source("./MTC - WMD Connectivity Functions.R")
+  simwmdconnect(startlocs.df[simbird,])
+})
 ################################################################################################
 #### Organize Results
 

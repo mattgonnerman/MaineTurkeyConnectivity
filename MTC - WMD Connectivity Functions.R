@@ -6,7 +6,10 @@ N.steps.max <- 15*30 #15 steps * number of days
 simwmdconnect <- function(x){
   
   startmove <- simstartmove(x)
-
+  
+  point <- st_point(c(x$Long[1], x$Lat[1]))
+  lasthex <- hexcovs[point,]$GridID[1]
+  
   if(startmove == 0){
     #Turkey DOES NOT leave winter range
     finalloc <- randwithinhex(x)
@@ -34,14 +37,14 @@ simwmdconnect <- function(x){
     turkeytrack <- rbind(start.output.df, end.output.df)
   }else{
     #Turkey DOES leave winter range
-    point <- st_point(c(x$Long[1], x$Lat[1]))
-    lasthex <- hexcovs[point,]$GridID[1] 
+ 
     
     turkeytrack <- sim.disperse.wmd(x, HS_day, HS_roost)
     
   }
   
-  return(turkeytrack)
+  write.table(turkeytrack, "WMDConnectSimTracks.csv", row.names = F, append = T)
+  # return(turkeytrack)
   
 }
 
@@ -77,14 +80,10 @@ sim.disperse.wmd <- function(startpoint.df, rasterday, rasterroost){
   for(i in 1:N.steps.max){
     if(i %% 15 == 0){
       step.decision <- sim.decision(output.df[i,], rasterroost, output.df$B[i], i)
-      output.df[i+1,] <- cbind(output.df[i,1:11], step.decision) %>% mutate(Step = Step +1)
-      output.df$D2End[i+1] <- abs(pointDistance(c(output.df$x[i+1],output.df$y[i+1]), 
-                                                c(output.df$EndX[i+1], output.df$EndY[i+1]), lonlat = F))
+      output.df[i+1,] <- cbind(output.df[i,1:12], step.decision) %>% mutate(Step = Step +1)
     }else{
       step.decision <- sim.decision(output.df[i,], rasterday, output.df$B[i], i)
-      output.df[i+1,] <- cbind(output.df[i,1:11], step.decision) %>% mutate(Step = Step +1)
-      output.df$D2End[i+1] <- abs(pointDistance(c(output.df$x[i+1],output.df$y[i+1]), 
-                                                c(output.df$EndX[i+1], output.df$EndY[i+1]), lonlat = F))
+      output.df[i+1,] <- cbind(output.df[i,1:12], step.decision) %>% mutate(Step = Step +1)
     }
     
     point <- st_point(c(step.decision$x[1], step.decision$y[1]))
@@ -93,7 +92,19 @@ sim.disperse.wmd <- function(startpoint.df, rasterday, rasterroost){
     if(lasthex != newhex){
       stop <- settle.decision(output.df[i+1,])
       
-      if(stop$Settle == 1){
+      if(stop == 1){
+        finalloc <- randwithinhex(output.df[i+1,])
+        finalloc.df <- output.df[i+1,] %>%
+          mutate(Step = Step + 1,
+                 x = finalloc[1],
+                 y = finalloc[2],
+                 CellID = NA,
+                 HS = NA,
+                 D = NA, 
+                 B = NA,
+                 TurnA = NA,
+                 W = NA)
+        output.df[i+2,] <- finalloc.df
         break
       }else{
         lasthex <- newhex 
