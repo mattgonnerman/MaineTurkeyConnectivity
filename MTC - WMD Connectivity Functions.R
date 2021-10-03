@@ -44,7 +44,7 @@ simwmdconnect <- function(x){
   }
   
   write.table(turkeytrack, "E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/WMDConnectSimTracks.csv", row.names = F,
-            append = T, sep = ",", col.names = !file.exists("WMDConnectSimTracks.csv"))
+            append = T, sep = ",", col.names = !file.exists("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/WMDConnectSimTracks.csv"))
   # return(turkeytrack)
   
 }
