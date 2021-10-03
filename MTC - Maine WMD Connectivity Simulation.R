@@ -110,7 +110,9 @@ write.csv(startlocs.df, "E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConne
 # })
 # sim.output <- do.call("bind_rows", sim.output.list)
 
-lapply(X = 1:nrow(startlocs.df), FUN = function(simbird) {
+startlocs.df <- read.csv("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/WMDConnectSimStart.csv")
+
+lapply(X = 901:nrow(startlocs.df), FUN = function(simbird) {
   source("./MTC - WMD Connectivity Functions.R")
   simwmdconnect(startlocs.df[simbird,])
 })

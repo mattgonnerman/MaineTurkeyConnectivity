@@ -186,7 +186,7 @@ cell.selection.w <- function(H, D, TA, p, k, rate, mu, rho){
   S <- dgamma(D, k, scale = 1/rate)
   TnA <- dwrpcauchy(TA, mu, rho)
   w <- HS * S * TnA
-  return(w)
+  return(ifelse(is.na(w), 0, w))
 }
 
 
