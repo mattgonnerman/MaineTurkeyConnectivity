@@ -82,6 +82,10 @@ startlocs.df <- startlocs.sf %>%
   mutate(BirdID = row_number())
   
 st_write(startlocs.sf, "E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/WMDConnectSimStart.shp", delete_layer = T)
+
+startlocs.df <- startlocs.df %>%
+  mutate(p = ifelse(p <= 0, ifelse(Sex == "M", r_p_M(n=1), r_p_F(n=1)), p),
+         rho = ifelse(rho <= 0, ifelse(Sex == "M", r_rho_M(n=1), r_rho_F(n=1)), rho))
 write.csv(startlocs.df, "E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/WMDConnectSimStart.csv", row.names = F)
 
 ################################################################################################
@@ -110,7 +114,7 @@ write.csv(startlocs.df, "E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConne
 # })
 # sim.output <- do.call("bind_rows", sim.output.list)
 
-startlocs.df <- read.csv("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/WMDConnectSimStart.csv")
+read.csv("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/WMDConnectSimStart.csv")
 
 lapply(X = 901:nrow(startlocs.df), FUN = function(simbird) {
   source("./MTC - WMD Connectivity Functions.R")

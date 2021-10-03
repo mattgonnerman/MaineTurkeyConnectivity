@@ -1,7 +1,7 @@
 
 #Scratch Pad for testing these functions
 
-startpoint.df <- test1 <- x <-  startlocs.df[1,]
+startpoint.df <- test1 <- x <-  startlocs.df[901,]
 
 simstartmove(test1)
 

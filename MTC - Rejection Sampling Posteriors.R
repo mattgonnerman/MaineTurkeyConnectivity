@@ -20,6 +20,11 @@ rs.results.F <- rs.results %>% filter(ObsType == "N")
 # r_R <- new_r(rs.results$R, type = "continuous")
 
 
+my_d_con <- new_d(rs.results.M$p, "continuous")
+head(meta_x_tbl(my_d_con))
+plot(my_d_con)
+
+
 ### SPLIT DISTRIBUTIONS FOR EACH SEX
 #Males
 r_p_M <- new_r(rs.results.M$p, type = "continuous")
