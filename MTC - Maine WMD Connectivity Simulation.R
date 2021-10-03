@@ -8,15 +8,15 @@ source("./MTC - WMD Connectivity Functions.R")
 ################################################################################################
 ### Load and Prepare Data
 forbin.rast <- raster("./GIS/ExtendedRasters/FullForestBin.tif")
-# forbin.rast <- trim(forbin.rast, values = 0)
-# writeRaster(forbin.rast, "./GIS/ExtendedRasters/FullForestBin.tif", overwrite = T)
+memory.limit(64000)
+values(forbin.rast)[values(forbin.rast) == 0] <- NA
+
 wmdbound <- st_read("E:/Maine Drive/GIS/wildlife_mgmt_districts2/wildlife_mgmt_districts.shp") %>%
   dplyr::select(WMD = IDENTIFIER) %>%
   arrange(WMD) %>%
-  st_transform(crs(forbin.rast))
+  st_transform(crs(forbin.rast)) %>%
+  filter(WMD != 29)
 wmdabun <- read.csv("./WMDTurkeyAbundance.csv")
-
-values(forbin.rast)[values(forbin.rast) == 0] <- NA
 
 
 #Prep Movement Initiation and Settling Decision Models
@@ -81,37 +81,41 @@ startlocs.df <- startlocs.sf %>%
   mutate(Step = 0) %>%
   mutate(BirdID = row_number())
   
+st_write(startlocs.sf, "E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/WMDConnectSimStart.shp", delete_layer = T)
+write.csv(startlocs.df, "E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/WMDConnectSimStart.csv", row.names = F)
 
 ################################################################################################
 ### Simulate Movements
-n.cores <- parallel::detectCores() /2
-my.cluster <- parallel::makeCluster(
-  n.cores, 
-  type = "PSOCK"
-)
-clusterEvalQ(my.cluster, {lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, character.only = TRUE)})
-clusterExport(my.cluster, c("startlocs.df", "hexcovs", "lasthex", "N.steps.max", "HS_day", "HS_roost", "forbin.rast"))
+# n.cores <- parallel::detectCores() /2
+# my.cluster <- parallel::makeCluster(
+#   n.cores, 
+#   type = "PSOCK"
+# )
+# clusterEvalQ(my.cluster, {lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, character.only = TRUE)})
+# clusterExport(my.cluster, c("startlocs.df", "hexcovs", "lasthex", "N.steps.max", "HS_day", "HS_roost", "forbin.rast"))
+# 
+# sim.output.list <- parLapply(cl = my.cluster, X = 1:10,
+#                              function(simbird) {
+#                                source("./MTC - WMD Connectivity Functions.R")
+#                                simwmdconnect(startlocs.df[simbird,])
+#                              })
+# parallel::stopCluster(cl = my.cluster)
+# sim.output <- do.call("bind_rows", sim.output.list)
+# # filelocation <- paste("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/CalSims_OGBird", ogbird, "Set", set, ".csv", sep = "_")
+# # write.csv(sim.output, filelocation, append = T)
+# 
+# sim.output.list <- lapply(X = 1:10, FUN = function(simbird) {
+#   source("./MTC - WMD Connectivity Functions.R")
+#   simwmdconnect(startlocs.df[simbird,])
+# })
+# sim.output <- do.call("bind_rows", sim.output.list)
 
-sim.output.list <- parLapply(cl = my.cluster, X = 1:10,
-                             function(simbird) {
-                               source("./MTC - WMD Connectivity Functions.R")
-                               simwmdconnect(startlocs.df[simbird,])
-                             })
-parallel::stopCluster(cl = my.cluster)
-sim.output <- do.call("bind_rows", sim.output.list)
-# filelocation <- paste("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/CalSims_OGBird", ogbird, "Set", set, ".csv", sep = "_")
-# write.csv(sim.output, filelocation, append = T)
-
-sim.output.list <- lapply(X = 1:10, FUN = function(simbird) {
+lapply(X = 1:nrow(startlocs.df), FUN = function(simbird) {
   source("./MTC - WMD Connectivity Functions.R")
   simwmdconnect(startlocs.df[simbird,])
 })
-sim.output <- do.call("bind_rows", sim.output.list)
 
-lapply(X = 1:2, FUN = function(simbird) {
-  source("./MTC - WMD Connectivity Functions.R")
-  simwmdconnect(startlocs.df[simbird,])
-})
+
 ################################################################################################
 #### Organize Results
 

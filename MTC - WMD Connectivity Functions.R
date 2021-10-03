@@ -39,11 +39,11 @@ simwmdconnect <- function(x){
     #Turkey DOES leave winter range
  
     
-    turkeytrack <- sim.disperse.wmd(x, HS_day, HS_roost)
+    turkeytrack <- sim.disperse.wmd(x, HS_day, HS_roost, lasthex)
     
   }
   
-  write.table(turkeytrack, "WMDConnectSimTracks.csv", row.names = F,
+  write.table(turkeytrack, "E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/WMDConnectSimTracks.csv", row.names = F,
             append = T, sep = ",", col.names = !file.exists("WMDConnectSimTracks.csv"))
   # return(turkeytrack)
   
@@ -66,7 +66,7 @@ simstartmove <-function(x){
 
 ########################################################################################################################
 ### Simulate Spring Seasonal Movement Track for 1 bird
-sim.disperse.wmd <- function(startpoint.df, rasterday, rasterroost){
+sim.disperse.wmd <- function(startpoint.df, rasterday, rasterroost, lasthex){
   dec.output <- data.frame(ID = 1,
                            CellID = NA, 
                            HS = NA,
@@ -164,7 +164,7 @@ sim.decision <- function(location, raster, prev.bear, i){
 ### If a bird doesn't have a roosting location near it when its time to roost (within R), 
 ### then sample all forested areas within an expanded radius and use distance as weights
 nearest.tree <- function(location, raster){
-  increased.R <- 2000
+  increased.R <- 4000
   options <- as.data.frame(extract(raster, location[,c("x", "y")], buffer = increased.R, cellnumbers = T, df = T)) %>%
     rename(HS = layer, CellID = cells)
   D.raster <- raster::distanceFromPoints(rasterFromCells(raster, options$CellID), location[,c("x", "y")])
