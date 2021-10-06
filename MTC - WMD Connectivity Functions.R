@@ -4,6 +4,10 @@ N.steps.max <- 15*30 #15 steps * number of days
 ########################################################################################################################
 ### Joint Function to simulate turkey movements between WMDs
 simwmdconnect <- function(x){
+  pth <- paste("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/WMDConnectSim/WMDConnectSimTrack_",
+               x$BirdID[1],
+               ".csv",
+               sep ="")
   
   startmove <- simstartmove(x)
   
@@ -43,8 +47,8 @@ simwmdconnect <- function(x){
     
   }
   
-  write.table(turkeytrack, "E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/WMDConnectSimTracks.csv", row.names = F,
-            append = T, sep = ",", col.names = !file.exists("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/WMDConnectSimTracks.csv"))
+  
+  write.csv(turkeytrack, pth, row.names = F)
   # return(turkeytrack)
   
 }
@@ -212,12 +216,12 @@ randwithinhex <- function(x){
   point1 <- st_point(c(x$Long[1], x$Lat[1]))
   hexbound <- hexcovs[point1,]
   
-  points.df <- as.data.frame(sampleRandom(forbin.rast, 100, ext = extent(hexbound),
+  points.df <- as.data.frame(sampleRandom(HS_roost, 100, ext = extent(hexbound),
                                           na.rm = T, xy = T))
-  points.sf <- st_as_sf(points.df, coords = c("x", "y"), crs = crs(wmdbound)) %>%
+  points.sf <- st_as_sf(points.df, coords = c("x", "y"), crs = crs(hexbound)) %>%
     st_join(., hexbound, join = st_intersects) %>%
     filter(GridID == hexbound$GridID[1]) %>%
-    filter(FullForestBin == 1) %>%
+    filter(layer > 0) %>%
     slice(1)
   
   
