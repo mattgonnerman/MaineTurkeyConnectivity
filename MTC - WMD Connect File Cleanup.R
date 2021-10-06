@@ -17,3 +17,19 @@ write.table(df, "E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/
 
 # Delete all the files so you don't duplicate entries
 sapply(cleanup, unlink)
+
+df.merged <- read.csv("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/WMDConnectSimTracks.csv")
+
+#How many simulations have been completed
+nrow(df.merged)
+length(unique(df.merged$BirdID))
+
+
+#How Many Birds Dispersed
+df.merged %>%
+  group_by(BirdID) %>% 
+  summarize(Total = n()) %>%
+  ungroup() %>%
+  mutate(Dispersed = ifelse(Total == 2, 0, 1)) %>%
+  group_by(Dispersed) %>%
+  summarize(Total = n())
