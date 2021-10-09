@@ -91,26 +91,25 @@ names(HS_roost) <- "layer"
 startlocs.df <- read.csv("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/WMDConnectSimStart.csv")
 ################################################################################################
 ### Simulate Movements
-df.merged <- read.csv("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/WMDConnectSimTracks.csv")
-compsim <- unique(df.merged$BirdID)
-rm("df.merged")
+load("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/CompletedSims.RData")
 '%notin%' <- Negate('%in%')
-needsim <- which(1:nrow(startlocs.df) %notin% compsim)
+needsim <- startlocs.df$BirdID[which(1:nrow(startlocs.df) %notin% df.comp)]
+length(needsim)
 
-n.cores <- parallel::detectCores()-1
-my.cluster <- parallel::makeCluster(
-  n.cores,
-  type = "PSOCK"
-)
-clusterEvalQ(my.cluster, {lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, character.only = TRUE)})
-clusterExport(my.cluster, c("startlocs.df", "hexcovs", "N.steps.max", "HS_day", "HS_roost"))
-
-parLapply(cl = my.cluster, X = needsim,
-                             function(simbird) {
-                               source("./MTC - WMD Connectivity Functions.R")
-                               simwmdconnect(startlocs.df[simbird,])
-                             })
-parallel::stopCluster(cl = my.cluster)
+# n.cores <- parallel::detectCores()-1
+# my.cluster <- parallel::makeCluster(
+#   n.cores,
+#   type = "PSOCK"
+# )
+# clusterEvalQ(my.cluster, {lapply(c("dplyr", "raster", "sf", "lubridate", "units", "CircStats"), require, character.only = TRUE)})
+# clusterExport(my.cluster, c("startlocs.df", "hexcovs", "N.steps.max", "HS_day", "HS_roost"))
+# 
+# parLapply(cl = my.cluster, X = needsim,
+#                              function(simbird) {
+#                                source("./MTC - WMD Connectivity Functions.R")
+#                                simwmdconnect(startlocs.df[simbird,])
+#                              })
+# parallel::stopCluster(cl = my.cluster)
 
 
 # sim.output <- do.call("bind_rows", sim.output.list)
@@ -119,7 +118,7 @@ parallel::stopCluster(cl = my.cluster)
 # startlocs.df <- read.csv("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/WMDConnectSimStart.csv")
 
 #Non-parallel lapply
-lapply(X = 1:nrow(startlocs.df), FUN = function(simbird) {
+lapply(X = needsim, FUN = function(simbird) {
   source("./MTC - WMD Connectivity Functions.R")
   simwmdconnect(startlocs.df[simbird,])
 })
