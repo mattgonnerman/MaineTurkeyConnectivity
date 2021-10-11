@@ -41,6 +41,13 @@ df.merged.4 <- read.csv("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConne
 
 df.merged <- do.call("rbind", list(df.merged.1, df.merged.2, df.merged.3, df.merged.4))
 
+df.screwed <- df.merged %>%
+  group_by(BirdID) %>%
+  summarize(Total = n()) %>%
+  filter(Total > 451)
+
+
+
 df.comp <- unique(df.merged$BirdID)
 length(df.comp)
 

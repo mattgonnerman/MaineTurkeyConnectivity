@@ -91,10 +91,13 @@ names(HS_roost) <- "layer"
 startlocs.df <- read.csv("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/Simulations/WMDConnectSimStart.csv")
 ################################################################################################
 ### Simulate Movements
+source("./MTC - WMD Connect File Cleanup.R")
+
 load("E:/Maine Drive/Analysis/Dissertation Backup/TurkeyConnectivity/CompletedSims.RData")
 '%notin%' <- Negate('%in%')
-needsim <- startlocs.df$BirdID[which(1:nrow(startlocs.df) %notin% df.comp)]
+needsim <- which(startlocs.df$BirdID %notin% df.comp)
 length(needsim)
+
 
 # n.cores <- parallel::detectCores()-1
 # my.cluster <- parallel::makeCluster(
