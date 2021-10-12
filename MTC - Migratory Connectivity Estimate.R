@@ -166,3 +166,45 @@ ggplot(data = W_wmdpoly) +
   scale_size_continuous(range = c(.5,2))
   theme_classic()
 
+### CONSIDER USING DOTS AT CENTROID WHERE SIZE = NET DISPLACEMENT
+netout <- set1 %>% group_by(StartWMD) %>% summarize(NetOut = sum(n)) %>% rename(WMD = StartWMD)
+netin <- set1 %>% group_by(EndWMD) %>% summarize(NetIn = sum(n)) %>% rename(WMD = EndWMD)
+netdispl.df <- merge(netout, netin, by = "WMD", all.x = T) %>%
+  mutate(NetDispl = NetIn - NetOut)
+wmdabund <- read.csv("WMDTurkeyAbundance.csv") %>% mutate(TotalTurk = TotalTurk*2) %>%
+  dplyr::select(WMD, TotalTurk)  
+netdispl.sf <- merge(W_wmdpoly, netdispl.df, by = "WMD")
+netdispl.sf <- merge(netdispl.sf, wmdabund, by = "WMD", all.x = T) %>%
+  mutate(PercentDisp = NetDispl/TotalTurk)
+
+breaks <- round(c(min(netdispl.sf$NetDispl), 0, max(netdispl.sf$NetDispl)), 2)
+colval <- (breaks - min(breaks))/(max(breaks) - min(breaks))
+net.plot <- ggplot(data = netdispl.sf) +
+  geom_sf(aes(fill = NetDispl)) +
+  scale_fill_gradientn(colors = c("#b24525", "#ece9d5", "#146f6c"),
+                       breaks = breaks,
+                       values = colval) +
+  theme_void() +
+  theme(legend.position = c(.9, .85)) +
+  labs(fill = "Net\nGain")
+
+breaks <- round(c(min(netdispl.sf$PercentDisp), 0, 
+            max(netdispl.sf[netdispl.sf$PercentDisp < 0.85,]$PercentDisp),
+            max(netdispl.sf$PercentDisp)), 2)
+colval <- (breaks - min(breaks))/(max(breaks) - min(breaks))
+percent.plot <- ggplot(data = netdispl.sf) +
+  geom_sf(aes(fill = PercentDisp)) +
+  scale_fill_gradientn(colors = c("#b24525", "#ece9d5", "#146f6c", "#222325"),
+                      breaks = breaks,
+                      values = colval) +
+  # scale_fill_gradient(low = "#4ff2c2",
+  #                     high = "#222325",
+  #                     breaks = breaks)
+  theme_void() +
+  theme(legend.position = c(.9, .85)) +
+  labs(fill = "Percent\nGain")
+
+require(patchwork)
+
+turkmove.plot <- net.plot + percent.plot
+turkmove.plot
