@@ -263,15 +263,9 @@ cand.models[[34]] <- settmodel.EdgeDens2 <- clogit(Settled ~ poly(Edg_Dns,2) + s
 cand.models[[35]] <- settmodel.EdgeDensSex <- clogit(Settled ~ Edg_Dns + Edg_Dns:Sex + strata(BirdID), settle.input)
 cand.models[[36]] <- settmodel.EdgeDens2Sex <- clogit(Settled ~ Edg_Dns + I(Edg_Dns^2) + Edg_Dns:Sex +I(Edg_Dns^2):Sex + strata(BirdID), settle.input)
 
-cand.models[[37]] <- settmodel.D2Start <- clogit(Settled ~ DisttoStart + strata(BirdID), settle.input)
-cand.models[[38]] <- settmodel.D2Start2 <- clogit(Settled ~ poly(DisttoStart,2) + strata(BirdID), settle.input)
-cand.models[[39]] <- settmodel.D2StartSex <- clogit(Settled ~ DisttoStart + DisttoStart:Sex + strata(BirdID), settle.input)
-cand.models[[40]] <- settmodel.D2Start2Sex <- clogit(Settled ~ DisttoStart + I(DisttoStart^2) + DisttoStart:Sex +I(DisttoStart^2):Sex + strata(BirdID), settle.input)
-
 aictab(cand.set = cand.models)
 
-cand.models[[41]] <- settmodel.Full <- clogit(Settled ~  Wetland + I(Wetland^2) + Wetland:Sex +I(Wetland^2):Sex + 
-                                                poly(DisttoStart,2) +
+cand.models[[37]] <- settmodel.Full <- clogit(Settled ~  Wetland + I(Wetland^2) + Wetland:Sex +I(Wetland^2):Sex + 
                                                 Agriculture + I(Agriculture^2) + Agriculture:Sex +I(Agriculture^2):Sex +
                                                 Developed + Developed:Sex + 
                                                 X + strata(BirdID), settle.input)
@@ -279,7 +273,7 @@ cand.models[[41]] <- settmodel.Full <- clogit(Settled ~  Wetland + I(Wetland^2) 
 aictab(cand.set = cand.models)
 settmodel.Full
 
-cand.models[[42]] <- settmodel.Final <- clogit(Settled ~  Wetland + I(Wetland^2) + Wetland:Sex +I(Wetland^2):Sex + 
+cand.models[[38]] <- settmodel.Final <- clogit(Settled ~  Wetland + I(Wetland^2) + Wetland:Sex +I(Wetland^2):Sex + 
                                                  Agriculture + I(Agriculture^2) + Agriculture:Sex +I(Agriculture^2):Sex +
                                                 + strata(BirdID), settle.input)
 aictab(cand.set = cand.models)
@@ -307,6 +301,59 @@ settle.predict <- hexcovs %>% st_drop_geometry() %>% dplyr::select(GridID, Wetla
 summary(settle.predict)
 
 write.csv(settle.predict, "HexCov_Settle.csv", row.names = F)
+
+###Examine Model outputs
+settle.input.raw <- read.csv("SettDesc_input_HEX.csv")
+wetmean <- mean(settle.input.raw$Wetland)
+wetsd <- sd(settle.input.raw$Wetland)
+agmean <- mean(settle.input.raw$Agriculture)
+agsd <- sd(settle.input.raw$Agriculture)
+
+preddf <- data.frame(Agriculture = 0,
+                     Sex = rep(c(1, 0), each = length(seq(-2,2,.1))),
+                     Wetland = rep(seq(-2,2,.1),2)) 
+x <- settmodel.Final$coefficients
+
+settle.predict <- preddf %>%
+  mutate(PreLink = x[1]*Wetland + x[2]*(Wetland^2) + x[5]*Sex*(Wetland^2) + x[3]*Agriculture + x[4]*(Agriculture^2) + x[6]*Sex*(Agriculture^2)) %>%
+  mutate(SettleProb = exp(PreLink)/(1+exp(PreLink))) %>%
+  mutate(Wetland = (Wetland*wetsd)+wetmean)
+
+ggplot(data = settle.predict, aes(x = Wetland, y = SettleProb, color = as.factor(Sex))) +
+  geom_line() +
+  xlim(0,0.35) +
+  theme_classic()
+
+
+
+preddf <- data.frame(Agriculture = rep(seq(-2,2,.1),2),
+                     Sex = rep(c(1, 0), each = length(seq(-2,2,.1))),
+                     Wetland = 0) 
+x <- settmodel.Final$coefficients
+
+settle.predict <- preddf %>%
+  mutate(PreLink = x[1]*Wetland + x[2]*(Wetland^2) + x[5]*Sex*(Wetland^2) + x[3]*Agriculture + x[4]*(Agriculture^2) + x[6]*Sex*(Agriculture^2)) %>%
+  mutate(SettleProb = exp(PreLink)/(1+exp(PreLink))) %>%
+  mutate(Agriculture = (Agriculture*agsd)+agmean)
+
+ggplot(data = settle.predict, aes(x = Agriculture, y = SettleProb, color = as.factor(Sex))) +
+  geom_line() +
+  xlim(0,0.15) +
+  theme_classic()
+
+preddf <- data.frame(Agriculture = 0,
+                     Sex = c(1, 0),
+                     Wetland = 0) 
+x <- settmodel.Final$coefficients
+
+settle.predict <- preddf %>%
+  mutate(PreLink = x[1]*Wetland + x[2]*(Wetland^2) + x[5]*Sex*(Wetland^2) + x[3]*Agriculture + x[4]*(Agriculture^2) + x[6]*Sex*(Agriculture^2)) %>%
+  mutate(SettleProb = exp(PreLink)/(1+exp(PreLink)))
+
+ggplot(data = settle.predict, aes(x = Wetland, y = SettleProb, color = as.factor(Sex))) +
+  geom_line() +
+  theme_classic()
+
 
 #################################################################################################################
 ### CREATE PLOTS ###

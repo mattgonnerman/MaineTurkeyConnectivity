@@ -94,6 +94,8 @@ accepted.df <- reject.results.df %>%
 
 write.csv(accepted.df, "Rejection Sampling Results.csv", row.names = F)
 
+accepted.df <- read.csv("Rejection Sampling Results.csv")
+
 #Which OG birds were fully rejected
 '%notin%' <- Negate('%in%')
 which(1:101 %notin% sort(unique(accepted.df$OG.ID)))

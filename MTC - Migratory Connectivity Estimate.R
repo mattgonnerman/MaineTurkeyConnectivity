@@ -90,7 +90,9 @@ S_wmddist <- matrix(as.numeric(st_distance(S_wmdcent)),
 
 # 3) Transition Probabilities bewteen each S and W 
 sim.combo <- merge(sim.startloc, sim.endloc, by = "BirdID", all = T) %>%
-  dplyr::select(BirdID, StartWMD, EndWMD)
+  dplyr::select(BirdID, StartWMD, EndWMD) %>%
+  filter(StartWMD != EndWMD)
+write.csv(sim.combo, "WMDSim_StartandEnd.csv")
 
 psi_ik <- as.matrix(sim.combo %>%
   count(StartWMD, EndWMD) %>%
@@ -102,6 +104,7 @@ psi_ik <- as.matrix(sim.combo %>%
 psi_il <- rowSums(psi_ik)
 
 psi <- psi_ik/psi_il
+
 rowSums(psi) #Check that all are 1
 
 # 4) Relative abundance within each region where individuals originate from
@@ -117,94 +120,3 @@ MC <- calcMC(originDist = W_wmddist,
              psi = psi,
              sampleSize = n)
 
-
-# Net Displacement of Turkeys
-set1 <- sim.combo %>%
-  count(StartWMD, EndWMD) %>%
-  filter(StartWMD != EndWMD)
-
-set2 <- set1 %>%
-  dplyr::select(StartWMD, EndWMD)
-
-netdispl <- function(xrow, df){
-  turkout <- xrow[3]
-  start <- xrow[1]
-  end <-xrow[2]
-  
-  turkin <- set1$n[which(set1$StartWMD == end & set1$EndWMD == start)]
-  netturk <- turkout - turkin
-  
-  if(identical(netturk, numeric(0))){
-    return(turkout)
-  }else{
-    return(turkout - turkin)
-  }
-  
-}
-
-set2$NetDispl <- unlist(apply(set1, 1, netdispl))
-
-#The final colum for NetDispl refers to the net number of turkeys that left a wmd for the end wmd
-set3 <- merge(set1, set2, by = c("StartWMD", "EndWMD"), all = T) %>%
-  filter(NetDispl > 0)
-
-wmdcent <- as.data.frame(st_coordinates(S_wmdcent)) %>%
-  mutate(StartWMD = c(0:28, 99), EndWMD = c(0:28,99)) %>%
-  mutate(EndX = X, EndY = Y) %>%
-  rename(StartX = X, StartY = Y)
-wmd.cent.start <- wmdcent %>% dplyr::select(StartWMD, StartX, StartY)
-wmd.cent.end <- wmdcent %>% dplyr::select(EndWMD, EndX, EndY)
-
-set4 <- merge(set3, wmd.cent.end, by = "EndWMD", all.x = T)
-set5 <- merge(set4, wmd.cent.start, by = "StartWMD", all.x = T)
-set6 <- set5 %>% filter(EndWMD != 99)
-
-ggplot(data = W_wmdpoly) +
-  geom_sf(fill) +
-  geom_segment(data = set6, aes(x = StartX, y = StartY, xend = EndX, yend = EndY, size = NetDispl),
-               arrow = arrow(length = unit(1, "cm"))) +
-  scale_size_continuous(range = c(.5,2))
-  theme_classic()
-
-### CONSIDER USING DOTS AT CENTROID WHERE SIZE = NET DISPLACEMENT
-netout <- set1 %>% group_by(StartWMD) %>% summarize(NetOut = sum(n)) %>% rename(WMD = StartWMD)
-netin <- set1 %>% group_by(EndWMD) %>% summarize(NetIn = sum(n)) %>% rename(WMD = EndWMD)
-netdispl.df <- merge(netout, netin, by = "WMD", all.x = T) %>%
-  mutate(NetDispl = NetIn - NetOut)
-wmdabund <- read.csv("WMDTurkeyAbundance.csv") %>% mutate(TotalTurk = TotalTurk*2) %>%
-  dplyr::select(WMD, TotalTurk)  
-netdispl.sf <- merge(W_wmdpoly, netdispl.df, by = "WMD")
-netdispl.sf <- merge(netdispl.sf, wmdabund, by = "WMD", all.x = T) %>%
-  mutate(PercentDisp = NetDispl/TotalTurk)
-
-breaks <- round(c(min(netdispl.sf$NetDispl), 0, max(netdispl.sf$NetDispl)), 2)
-colval <- (breaks - min(breaks))/(max(breaks) - min(breaks))
-net.plot <- ggplot(data = netdispl.sf) +
-  geom_sf(aes(fill = NetDispl)) +
-  scale_fill_gradientn(colors = c("#b24525", "#ece9d5", "#146f6c"),
-                       breaks = breaks,
-                       values = colval) +
-  theme_void() +
-  theme(legend.position = c(.9, .85)) +
-  labs(fill = "Net\nGain")
-
-breaks <- round(c(min(netdispl.sf$PercentDisp), 0, 
-            max(netdispl.sf[netdispl.sf$PercentDisp < 0.85,]$PercentDisp),
-            max(netdispl.sf$PercentDisp)), 2)
-colval <- (breaks - min(breaks))/(max(breaks) - min(breaks))
-percent.plot <- ggplot(data = netdispl.sf) +
-  geom_sf(aes(fill = PercentDisp)) +
-  scale_fill_gradientn(colors = c("#b24525", "#ece9d5", "#146f6c", "#222325"),
-                      breaks = breaks,
-                      values = colval) +
-  # scale_fill_gradient(low = "#4ff2c2",
-  #                     high = "#222325",
-  #                     breaks = breaks)
-  theme_void() +
-  theme(legend.position = c(.9, .85)) +
-  labs(fill = "Percent\nGain")
-
-require(patchwork)
-
-turkmove.plot <- net.plot + percent.plot
-turkmove.plot

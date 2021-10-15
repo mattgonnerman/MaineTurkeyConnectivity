@@ -14,6 +14,7 @@ summary(pointsperday$Total)
 
 #Step Length Summary
 summary(AllPoints.ssf.df$sl_)
+summary(AllPoints.ssf.df$ta_)
 
 #Min Observed distance to road/forest
 

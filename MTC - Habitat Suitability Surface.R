@@ -461,3 +461,26 @@ write.csv(ssf.GLOBAL.seasonalmove$summary.fixed, "Global SSF Coefficients.csv")
 ssf.GLOBAL.seasonalmove$summary.hyperpar
 ssf.GLOBAL.seasonalmove$waic$waic
 save(ssf.GLOBAL.seasonalmove, file = "SSF Global Model.RData")
+
+
+### Examine Model Outputs
+load( "SSF Global Model.RData")
+summary(ssf.GLOBAL.seasonalmove)
+
+mf.summ <- summary(ssf.GLOBAL.seasonalmove)$fixed
+
+preddf <- data.frame(Ag.cov = 0,
+                     Dev.cov = 0,
+                     Wetland.cov = 0,
+                     Slope.cov = 0,
+                     DtR.cov = 0,
+                     DtFE.cov = 0, 
+                     sl_ = 0)
+
+predict(ssf.GLOBAL.seasonalmove, preddf)
+
+#10 degree increase in slope
+exp(mf.summ*10)[4,] 
+#100m increase in distance from forest edge
+exp(mf.summ*100)[6,] 
+

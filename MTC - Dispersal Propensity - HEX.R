@@ -198,6 +198,7 @@ cand.models[[39]] <- dispmodel.EdgeDens2Sex <- glm(Disperser ~ Edg_Dns + I(Edg_D
 
 aictab(cand.set = cand.models)
 
+
 # #Cross Validation for top models
 # require(caret)
 # train.control <- trainControl(method = "cv", number = 10)
@@ -243,7 +244,40 @@ cand.models[[41]] <- dispmodel.Final <- glm(Disperser ~ Agriculture + Sex +
                                               Y, data = disp.input, family = "binomial")
 
 aictab(cand.set = cand.models)
+
 summary(dispmodel.Final)
+
+###Examine Model outputs
+preddf <- data.frame(Agriculture = 0,
+                     Sex = rep(c("M", "F"), each = length(seq(-2,2,.1))),
+                     Connectance = 0,
+                     Edg_Dns = 0,
+                     Ag_Indx = 0,
+                     Developed = 0,
+                     Y = rep(seq(-2,2,.1),2)) 
+
+modpred.prob <- predict(dispmodel.Final, preddf, se.fit = T, type = "response",
+                        level = .95)
+
+preddf$Mean <- modpred.prob$fit
+preddf$SE <- modpred.prob$sefit
+
+
+# devmean <- mean(disp.input.raw$Develpd)
+# devsd <- sd(disp.input.raw$Develpd)
+# preddf$Developed <- (preddf$Developed*devsd)+devmean
+
+ggplot(data = preddf, aes(x = Y, y = Mean, color = Sex)) +
+  geom_line()
+summ <- summary(dispmodel.Final)
+
+# Potential plots
+#https://fromthebottomoftheheap.net/2018/12/10/confidence-intervals-for-glms/#
+
+data.frame(Mean = dispmodel.Final$coefficients,
+           LCL = dispmodel.Final$coefficients - 1.96*summ$coefficients[,2],
+           UCL = dispmodel.Final$coefficients + 1.96*summ$coefficients[,2])
+
 
 # cand.models[[42]] <- dispmodel.Final2 <- glm(Disperser ~ Agriculture + Sex + 
 #                                               Connectance +
@@ -309,6 +343,12 @@ disp.predict <- hexcovs %>% st_drop_geometry() %>% dplyr::select(GridID,
 summary(disp.predict)
 
 write.csv(disp.predict, "HexCov_Disp.csv", row.names = F)
+
+hexcovs <- read.csv("HexCov_Disp.csv")
+
+summary(hexcovs$DispProbF)
+summary(hexcovs$DispProbM)
+
 
 ### Plot settling probability across grid
 require(ggplot2)
