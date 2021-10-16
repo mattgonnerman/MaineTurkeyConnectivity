@@ -13,11 +13,11 @@ rs.results.M <- rs.results %>% filter(ObsType == "H")
 rs.results.F <- rs.results %>% filter(ObsType == "N")
 
 ### SINGLE DISTRIBUTION FOR BOTH SEXES
-# r_p <- new_r(rs.results$p, type = "continuous")
-# r_rho <- new_r(rs.results$rho, type = "continuous")
-# r_k <- new_r(rs.results$k, type = "continuous")
-# r_rate <- new_r(rs.results$rate, type = "continuous")
-# r_R <- new_r(rs.results$R, type = "continuous")
+r_p <- new_r(rs.results$p, type = "continuous")
+r_rho <- new_r(rs.results$rho, type = "continuous")
+r_k <- new_r(rs.results$k, type = "continuous")
+r_rate <- new_r(rs.results$rate, type = "continuous")
+r_R <- new_r(rs.results$R, type = "continuous")
 
 
 my_d_con <- new_d(rs.results.M$p, "continuous")
@@ -27,17 +27,17 @@ plot(my_d_con)
 
 ### SPLIT DISTRIBUTIONS FOR EACH SEX
 #Males
-r_p_M <- new_r(rs.results.M$p, type = "continuous")
-r_rho_M <- new_r(rs.results.M$rho, type = "continuous")
-r_k_M <- new_r(rs.results.M$k, type = "continuous")
-r_rate_M <- new_r(rs.results.M$rate, type = "continuous")
-r_R_M <- new_r(rs.results.M$R, type = "continuous")
-#Females
-r_p_F <- new_r(rs.results.F$p, type = "continuous")
-r_rho_F <- new_r(rs.results.F$rho, type = "continuous")
-r_k_F <- new_r(rs.results.F$k, type = "continuous")
-r_rate_F <- new_r(rs.results.F$rate, type = "continuous")
-r_R_F <- new_r(rs.results.F$R, type = "continuous")
+# r_p_M <- new_r(rs.results.M$p, type = "continuous")
+# r_rho_M <- new_r(rs.results.M$rho, type = "continuous")
+# r_k_M <- new_r(rs.results.M$k, type = "continuous")
+# r_rate_M <- new_r(rs.results.M$rate, type = "continuous")
+# r_R_M <- new_r(rs.results.M$R, type = "continuous")
+# #Females
+# r_p_F <- new_r(rs.results.F$p, type = "continuous")
+# r_rho_F <- new_r(rs.results.F$rho, type = "continuous")
+# r_k_F <- new_r(rs.results.F$k, type = "continuous")
+# r_rate_F <- new_r(rs.results.F$rate, type = "continuous")
+# r_R_F <- new_r(rs.results.F$R, type = "continuous")
 
 # rs.prior <- data.frame(p = runif(10000, .1, 5),
 #                    rho = runif(10000, 0.0000000000001, 0.26868487 + (20*0.01281980)),
