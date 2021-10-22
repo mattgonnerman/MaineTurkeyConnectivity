@@ -1,5 +1,7 @@
 lapply(c("dplyr", 'sf', 'raster', "tidyverse"), require, character.only = T)
 
+source("MTC - Migratory Connectivity Estimate.R")
+
 #Load start and end points for turkeys that did seasonal movements outside of their original WMD
 sim.combo <- read.csv("WMDSim_StartandEnd.csv")
 
@@ -33,15 +35,16 @@ breaks <- round(c(min(netdispl.sf$PercentDisp), 0,
 colval <- (breaks - min(breaks))/(max(breaks) - min(breaks))
 percent.plot <- ggplot(data = netdispl.sf) +
   geom_sf(aes(fill = PercentDisp), color = "black", lwd = 2) +
-  viridis::scale_fill_viridis(breaks = breaks,
+  viridis::scale_fill_viridis(breaks = breaks[c(1,3,4)],
                               values = colval) +
-  theme_void(base_size = 35) +
+  theme_void(base_size = 25) +
   labs(fill = "Percent\nGain") +
-  theme(legend.position = "top",
+  theme(legend.position = c(.75, .15),
+        legend.direction = "horizontal",
         legend.title = element_blank(),
         plot.title = element_text(vjust = -20),
-        legend.key.width = unit(1.7,"cm"),
-        legend.key.height = unit(2,"cm"))
+        legend.key.width = unit(1.2,"cm"),
+        legend.key.height = unit(1,"cm"))
 
 
 ### Exchange Between WMDs 
@@ -70,10 +73,11 @@ set3 <- merge(set2, wmdcent1 %>% dplyr::select(-WMD1), by = "WMD2", all.x = T) %
 
 linemap <- ggplot(data = W_wmdpoly) +
   geom_sf(fill = NA) +
-  geom_segment(data = set3, aes(x = StartX, y = StartY, xend = EndX, yend = EndY, size = Total)) +
-  viridis::scale_color_viridis() +
-  theme_void(base_size = 35) +
-  theme(legend.position = "top",
+  geom_segment(data = set3, lineend = "round",
+               aes(x = StartX, y = StartY, xend = EndX, yend = EndY, size = Total)) +
+  scale_size_continuous(breaks = c(1,200, 500, 800)) +
+  theme_void(base_size = 25) +
+  theme(legend.position = c(.75, .15),
         legend.direction = "vertical",
         legend.key.width = unit(2, "cm"),
         legend.title = element_blank())
@@ -94,21 +98,22 @@ tran.matrix <- ggplot(data = transprob.long, aes(x= as.factor(EndWMD), y = as.fa
   geom_tile(color = "grey60") +
   viridis::scale_fill_viridis(na.value = "white",
                       limit = c(0,max(transprob.long$TransitionProb)), space = "Lab", name="Transition\nProbability") +
-  theme_minimal(base_size = 35)+
+  theme_minimal(base_size = 25)+
   labs(x = "Destination (WMD)", y = "Origin (WMD)") +
-  theme(legend.position = "top",
+  theme(legend.position = c(.5, -.06),
         legend.direction = "horizontal",
         legend.title = element_blank(),
         aspect.ratio = 1,
         axis.ticks = element_line(),
         legend.key.width = unit(2, "cm"),
         legend.key.height = unit(1, "cm")) +
-  scale_x_discrete(labels = c("", "0", "", "", "", "4", "", "", "", "8", "", "", "",
-                              "12", "", "", "", "16", "", "", "", "20", "", "", "",
-                              "24", "", "", "", "28")) +
-  scale_y_discrete(labels = c("0", "", "", "", "4", "", "", "", "8", "", "", "",
-                              "12", "", "", "", "16", "", "", "", "20", "", "", "",
-                              "24", "", "", "", "28"))
+  scale_x_discrete(labels = c("", "0", "", "2", "", "4", "", "6", "", "8", "", "10", "",
+                              "12", "", "14", "", "16", "", "18", "", "20", "", "22", "",
+                              "24", "", "26", "", "28"),
+                   position = "top") +
+  scale_y_discrete(labels = c("0", "", "2", "", "4", "", "6", "", "8", "", "10", "",
+                              "12", "", "14", "", "16", "", "18", "", "20", "", "22", "",
+                              "24", "", "26", "", "28"))
 
 require(patchwork)
 
@@ -121,10 +126,10 @@ require(patchwork)
 # BBBBCCCCC
 # "
 # plot_layout(design = layout) +
-turkmove.plot <- tran.matrix + linemap + percent.plot + 
-  plot_layout(widths = c(1,1,1)) +
+turkmove.plot <- percent.plot + tran.matrix + linemap + 
+  plot_layout(widths = c(1.2,1,1.2)) +
   plot_annotation(tag_levels = 'A') & 
-  theme(plot.tag = element_text(size = 35), plot.tag.position = c(0.05,.9))
+  theme(plot.tag = element_text(size = 35), plot.tag.position = c(0.10,.88))
 ggsave(turkmove.plot, file = "./Figures/WMDConnectivity Summary Plots.jpg",
-       width = 33, height = 12)
+       width = 33, height = 16)
 

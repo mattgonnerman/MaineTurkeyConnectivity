@@ -15,6 +15,7 @@ disperser.end <- st_read("./GIS/Disperser End.shp") %>%
   dplyr::select(ObsType, OG.ID = ID) %>% st_drop_geometry()
 rs.results <- merge(rs.results, disperser.end, by = "OG.ID")
 
+source("./MTC - Rejection Sampling Posteriors.R")
 rs.posterior <- data.frame(p = r_p(n = 10000),
                            rho = r_rho(n = 10000),
                            k = r_k(n = 10000),
@@ -22,7 +23,9 @@ rs.posterior <- data.frame(p = r_p(n = 10000),
 
 
 p.plot <- ggplot() +
-  geom_density(data = prior.df, aes(x = p), linetype = "solid", lwd = 1.4, color = "black") +
+  # geom_density(data = prior.df, aes(x = p), linetype = "solid", lwd = 1.4, color = "black") +
+  geom_segment(aes(y = .2, yend = .2, x = 0, xend = 5), lwd = 1.4, color = "black") +
+  geom_density(data = rs.results, aes(x = p, group = OG.ID), linetype = "dashed", lwd = 1, color = alpha("grey60", .3)) +
   geom_density(data = rs.results, aes(x = p), linetype = "dashed", lwd = 1.4, color = "red") +
   theme_classic(base_size = 25) +
   labs(x = expression(italic("p"))) +
@@ -30,7 +33,9 @@ p.plot <- ggplot() +
         axis.text.y = element_blank())
 
 rho.plot <- ggplot() +
-  geom_density(data = prior.df, aes(x = rho), linetype = "solid", lwd = 1.4, color = "black") +
+  # geom_density(data = prior.df, aes(x = rho), linetype = "solid", lwd = 1.4, color = "black") +
+  geom_segment(aes(y = 1.25, yend = 1.25, x = 0, xend = .8), lwd = 1.4, color = "black") +
+  geom_density(data = rs.results, aes(x = rho, group = OG.ID), linetype = "dashed", lwd = 1, color = alpha("grey60", .3)) +
   geom_density(data = rs.results, aes(x = rho), linetype = "dashed", lwd = 1.4, color = "red") +
   theme_classic(base_size = 25) +
   labs(x = expression(italic("rho"))) +
@@ -38,7 +43,9 @@ rho.plot <- ggplot() +
         axis.text.y = element_blank())
 
 k.plot <- ggplot() +
-  geom_density(data = prior.df, aes(x = k), linetype = "solid", lwd = 1.4, color = "black") +
+  # geom_density(data = prior.df, aes(x = k), linetype = "solid", lwd = 1.4, color = "black") +
+  geom_segment(aes(y = .7, yend = .7, x = 0, xend = 1.6), lwd = 1.4, color = "black") +
+  geom_density(data = rs.results, aes(x = k, group = OG.ID), linetype = "dashed", lwd = 1, color = alpha("grey60", .3)) +
   geom_density(data = rs.results, aes(x = k), linetype = "dashed", lwd = 1.4, color = "red") +
   theme_classic(base_size = 25) +
   labs(x = expression(italic("k"))) +
@@ -46,7 +53,9 @@ k.plot <- ggplot() +
         axis.text.y = element_blank())
 
 rate.plot <- ggplot() +
-  geom_density(data = prior.df, aes(x = rate), linetype = "solid", lwd = 1.4, color = "black") +
+  # geom_density(data = prior.df, aes(x = rate), linetype = "solid", lwd = 1.4, color = "black") +
+  geom_segment(aes(y = 180, yend = 180, x = 0, xend = .006), lwd = 1.4, color = "black") +
+  geom_density(data = rs.results, aes(x = rate, group = OG.ID), linetype = "dashed", lwd = 1, color = alpha("grey60", .3)) +
   geom_density(data = rs.results, aes(x = rate), linetype = "dashed", lwd = 1.4, color = "red") +
   theme_classic(base_size = 25) +
   labs(x = expression(italic("rate"))) +

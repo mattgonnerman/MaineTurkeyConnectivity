@@ -2,8 +2,8 @@
 lapply(c("sf", "dplyr", "ggplot2"), require, character.only = TRUE)
 
 #Load Maine Towns Object
-mainetowns <-  st_read("E:/Maine Drive/GIS/Maine_Boundaries_Town_and_Townships_Polygon-shp/Maine_Boundaries_Town_and_Townships_Polygon.shp") %>%
-  dplyr::select(Town = TOWN) %>%
+mainetowns <-  st_read("./GIS/TownCovs.shp") %>%
+  dplyr::select(Town) %>%
   group_by(Town) %>%
   summarize(Ref = n())
 
@@ -34,6 +34,7 @@ dispersed.dest <- merge(dispersed.dest, towncenters, by = "Town", all.x = T) %>%
 dispersal.lines <- rbind(dispersed.origin, dispersed.dest)%>% 
   group_by(BirdID) %>% 
   summarize(Total = c()) %>% 
+  st_cast("MULTIPOINT")%>% 
   st_cast("LINESTRING")
 
 #Summarize Number of birds remaining in origin
@@ -46,10 +47,20 @@ disperse.points <- merge(totdisp, towncenters, by = "Town", all.x = T) %>%
   arrange(TotalDisperse) %>%
   st_as_sf()
 
+### WMD Polygon
+wmdpoly <- st_read("E:/Maine Drive/GIS/WMD Boundaries/Maine_Wildlife_Management_Districts.shp") %>%
+  dplyr::select(WMD = IDENTIFIER) %>%
+  filter(WMD != 29) %>%
+  arrange(WMD)
+
 ### Create Map
-ggplot() +
-  geom_sf(data = mainetowns, fill = NA, size = .4) +
-  geom_sf(data = dispersal.lines, size = 1) +
-  geom_sf(data = disperse.points, size = 2, color = "blue") +
-  # geom_sf(data = remain.points, size = 1, color = "red") +
-  theme_classic()
+obsmap <- ggplot() +
+  geom_sf(data = wmdpoly, fill = NA, size = 1) +
+  geom_sf(data = dispersal.lines, size = 2) +
+  geom_sf(data = dispersed.origin, size = 2, color = "blue") +
+  geom_sf(data = dispersed.dest, size = 1.2, color = "red") +
+  theme_linedraw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+
+ggsave(obsmap, file = "./Figures/NestHarvestMap.jpeg",
+       width = 8, height = 10)
