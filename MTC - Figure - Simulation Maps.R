@@ -54,28 +54,55 @@ rastext <-merge(extent(sim.lines), extent(end))
 rastext <- extend(rastext,2000)
 HS_df <- as.data.frame(rasterToPoints(crop(HS_day, rastext)))
 
-
 sim.plot <- ggplot(data = best.lines) +
   geom_raster(data = HS_df, aes(x = x, y = y, fill = layer)) +
-  geom_sf(data = sim.lines, color = "yellow", show.legend = F) +
-  geom_sf(color = "orange", show.legend = F, lwd = 1.3) +
-  geom_sf(data = start[1,], color = "blue", size = 4, shape = 20) +
-  geom_sf(data = end, color = "red", size = 4, shape = 20) +
-  geom_sf(data = hexgrid, fill = NA, color = alpha("black", 0.25)) +
-  geom_sf(data = hexstart, fill = NA, color = "blue") +
-  geom_sf(data = hexend, fill = NA, color = "red") +
-  theme_classic(base_size = 20) +
+  geom_sf(data = sim.lines %>% st_transform(4326), aes(geometry = geometry), inherit.aes = FALSE,
+          color = alpha("yellow", .8), show.legend = F) +
+  geom_sf(data = best.lines %>% st_transform(4326), aes(geometry = geometry), inherit.aes = FALSE,
+          color = "#c4200e", show.legend = F, lwd = .8) +
+  geom_sf(data = start[1,] %>% st_transform(4326), aes(geometry = geometry), inherit.aes = FALSE,
+          color = "black", size = 6, shape = 20) +
+  geom_sf(data = end %>% st_transform(4326), aes(geometry = geometry), inherit.aes = FALSE,
+          color = "black", size = 6, shape = 20) +
+  geom_sf(data = hexgrid %>% st_transform(4326), aes(geometry = geometry), inherit.aes = FALSE,
+          fill = NA, color = alpha("grey60", 0.35)) +
+  geom_sf(data = hexstart %>% st_transform(4326), aes(geometry = geometry), inherit.aes = FALSE,
+          fill = NA, color = "black") +
+  geom_sf(data = hexend %>% st_transform(4326), aes(geometry = geometry), inherit.aes = FALSE,
+          fill = NA, color = "black") +
+  geom_sf_label(data = end, aes(label = "Destination", geometry = geometry), inherit.aes = FALSE,
+               color = "black", nudge_x = 5300, nudge_y = -8700) +
+  geom_sf_label(data = start[1,], aes(label = "Origin", geometry = geometry), inherit.aes = FALSE,
+               color = "black", nudge_x = -3400, nudge_y = 10800) +
+  # scale_color_discrete(type = heat.colors(n = nrow(best.lines))) +
   scale_fill_continuous(type = "viridis") +
-  coord_sf(xlim = extent(rastext)[1:2],
-           ylim = extent(rastext)[3:4],
-           expand = F, label_graticule = "WS",
-           ndiscr = 30) +
+  coord_sf(xlim = rastext[1:2], 
+           ylim = rastext[3:4], 
+           expand = F) +
+  theme_linedraw(base_size = 20) +
   theme(axis.title = element_blank(),
         legend.position = "none")
 
-ggsave(sim.plot, file = "./Figures/Example Rejection Sampling.jpg", 
-         width = 10, height = 10)
+ggsave(sim.plot, file = "./Figures/Example Rejection Sampling - HS.jpg", 
+       width = 10, height = 10)
 
+# sim.plot <- ggplot(data = best.lines) +
+#   geom_raster(data = HS_df, aes(x = x, y = y, fill = layer)) +
+#   geom_sf(data = sim.lines, color = "yellow", show.legend = F) +
+#   geom_sf(color = "orange", show.legend = F, lwd = 1.3) +
+#   geom_sf(data = start[1,], color = "blue", size = 4, shape = 20) +
+#   geom_sf(data = end, color = "red", size = 4, shape = 20) +
+#   geom_sf(data = hexgrid, fill = NA, color = alpha("black", 0.25)) +
+#   geom_sf(data = hexstart, fill = NA, color = "blue") +
+#   geom_sf(data = hexend, fill = NA, color = "red") +
+#   theme_classic(base_size = 20) +
+#   scale_fill_continuous(type = "viridis") +
+#   coord_sf(xlim = extent(rastext)[1:2],
+#            ylim = extent(rastext)[3:4],
+#            expand = F, label_graticule = "WS",
+#            ndiscr = 30) +
+#   theme(axis.title = element_blank(),
+#         legend.position = "none")
 
 require(ggmap)
 rastext <-merge(extent(sim.lines %>% st_transform(4326)), extent(end %>% st_transform(4326)))
@@ -88,6 +115,7 @@ simMap <- get_stamenmap(bbox = c(left = rastext[1],
                           crop = F,
                           zoom = 11,
                           color = "color")
+
 
 sim.map <- ggmap(simMap) +
   geom_sf(data = sim.lines %>% st_transform(4326), aes(geometry = geometry), inherit.aes = FALSE,

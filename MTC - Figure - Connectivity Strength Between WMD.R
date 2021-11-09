@@ -35,15 +35,22 @@ breaks <- round(c(min(netdispl.sf$PercentDisp), 0,
 colval <- (breaks - min(breaks))/(max(breaks) - min(breaks))
 percent.plot <- ggplot(data = netdispl.sf) +
   geom_sf(aes(fill = PercentDisp), color = "black", lwd = 2) +
-  viridis::scale_fill_viridis(breaks = breaks[c(1,3,4)],
-                              values = colval) +
+  # viridis::scale_fill_viridis(breaks = breaks[c(1,3,4)],
+  #                             values = colval,
+  #                             guide = guide_colorbar(title = "Percent Change", 
+  #                                                    title.position = "top",
+  #                                                    title.hjust = .5)) +
+  scale_fill_gradientn(colors = c("#292ad9", "white","orange", "#a61520"),
+                       breaks = c(round(min(netdispl.sf$PercentDisp),2), 0,
+                                  abs(round(min(netdispl.sf$PercentDisp),2)), round(max(netdispl.sf$PercentDisp),2)),
+                       values = c(0,abs(min(netdispl.sf$PercentDisp)/(max(netdispl.sf$PercentDisp) - min(netdispl.sf$PercentDisp))),
+                                  2*abs(min(netdispl.sf$PercentDisp)/(max(netdispl.sf$PercentDisp) - min(netdispl.sf$PercentDisp))),1),
+                       guide = guide_colorbar(title = "Percent Change", title.position = "top", title.hjust = .5,
+                                              label.theme = element_text(angle = 45))) +
   theme_void(base_size = 25) +
-  labs(fill = "Percent\nGain") +
-  theme(legend.position = c(.75, .15),
+  theme(legend.position = c(.70, .13),
         legend.direction = "horizontal",
-        legend.title = element_blank(),
-        plot.title = element_text(vjust = -20),
-        legend.key.width = unit(1.2,"cm"),
+        legend.key.width = unit(1.5,"cm"),
         legend.key.height = unit(1,"cm"))
 
 
@@ -75,12 +82,15 @@ linemap <- ggplot(data = W_wmdpoly) +
   geom_sf(fill = NA) +
   geom_segment(data = set3, lineend = "round",
                aes(x = StartX, y = StartY, xend = EndX, yend = EndY, size = Total)) +
-  scale_size_continuous(breaks = c(1,200, 500, 800)) +
+  scale_size_continuous(breaks = c(1,50, 250, 500, 800), 
+                        guide = guide_legend(title = "Total\nImmigration",
+                                             title.position = "top",
+                                             title.hjust = .5)) +
   theme_void(base_size = 25) +
-  theme(legend.position = c(.75, .15),
+  theme(legend.position = c(.75, .13),
         legend.direction = "vertical",
-        legend.key.width = unit(2, "cm"),
-        legend.title = element_blank())
+        legend.key.width = unit(2, "cm"))
+  
 
 ### Correlation Plot showing transition probabilities
 # source("./MTC - Migratory Connectivity Estimate.R")
@@ -96,13 +106,21 @@ samedf <- data.frame(StartWMD = 0:28, EndWMD = 0:28, TransitionProb = NA)
 transprob.long <- rbind(transprob.long, samedf)
 tran.matrix <- ggplot(data = transprob.long, aes(x= as.factor(EndWMD), y = as.factor(StartWMD), fill = TransitionProb)) + 
   geom_tile(color = "grey60") +
-  viridis::scale_fill_viridis(na.value = "white",
-                      limit = c(0,max(transprob.long$TransitionProb)), space = "Lab", name="Transition\nProbability") +
+  # viridis::scale_fill_viridis(na.value = "white",
+  #                     limit = c(0,max(transprob.long$TransitionProb)), space = "Lab", name="Transition\nProbability",
+  #                     guide = guide_colorbar(title = "Transition Probability",
+  #                                            title.position = "top",
+  #                                            title.hjust = .5)) +
+  scale_fill_gradient(#colors = c("#292ad9", "white", "#a61520"),
+                      low = "white", high = "#a61520",
+                      labels = c(0, round(max(transprob.long$TransitionProb, na.rm = T)/2,2), round(max(transprob.long$TransitionProb, na.rm = T),2)), 
+                      breaks = c(0, round(max(transprob.long$TransitionProb, na.rm = T)/2,2), round(max(transprob.long$TransitionProb, na.rm = T),2)-.01), 
+                      space = "Lab", name="Transition\nProbability",
+                      guide = guide_colorbar(title = "Transition Probability", title.position = "top", title.hjust = .5)) +
   theme_minimal(base_size = 25)+
   labs(x = "Destination (WMD)", y = "Origin (WMD)") +
-  theme(legend.position = c(.5, -.06),
+  theme(legend.position = c(.5, -.1),
         legend.direction = "horizontal",
-        legend.title = element_blank(),
         aspect.ratio = 1,
         axis.ticks = element_line(),
         legend.key.width = unit(2, "cm"),
@@ -117,15 +135,11 @@ tran.matrix <- ggplot(data = transprob.long, aes(x= as.factor(EndWMD), y = as.fa
 
 require(patchwork)
 
-# layout <- "
-# AAAACCCCC
-# AAAACCCCC
-# AAAACCCCC
-# BBBBCCCCC
-# BBBBCCCCC
-# BBBBCCCCC
-# "
-# plot_layout(design = layout) +
+layout <- "
+AB
+CC
+CC
+"
 turkmove.plot <- percent.plot + tran.matrix + linemap + 
   plot_layout(widths = c(1.2,1,1.2)) +
   plot_annotation(tag_levels = 'A') & 

@@ -319,10 +319,14 @@ settle.predict <- preddf %>%
   mutate(SettleProb = exp(PreLink)/(1+exp(PreLink))) %>%
   mutate(Wetland = (Wetland*wetsd)+wetmean)
 
-ggplot(data = settle.predict, aes(x = Wetland, y = SettleProb, color = as.factor(Sex))) +
-  geom_line() +
+wetplot <- ggplot(data = settle.predict, aes(x = Wetland, y = SettleProb, color = as.factor(Sex))) +
+  geom_line(size = 2) +
   xlim(0,0.35) +
-  theme_classic()
+  theme_classic(base_size = 25) +
+  labs(x = "Proportion Wetland") +
+  scale_color_manual(values = c("darkorchid4", "deeppink2")) +
+  theme(axis.title.y = element_blank(),
+        legend.position = "none")
 
 
 
@@ -336,24 +340,26 @@ settle.predict <- preddf %>%
   mutate(SettleProb = exp(PreLink)/(1+exp(PreLink))) %>%
   mutate(Agriculture = (Agriculture*agsd)+agmean)
 
-ggplot(data = settle.predict, aes(x = Agriculture, y = SettleProb, color = as.factor(Sex))) +
-  geom_line() +
+agplot <- ggplot(data = settle.predict, aes(x = Agriculture, y = SettleProb, color = as.factor(Sex))) +
+  geom_line(size = 2) +
   xlim(0,0.15) +
-  theme_classic()
+  theme_classic(base_size = 25) +
+  labs(x = "Proportion Agriculture") +
+  scale_color_manual(values = c("darkorchid4", "deeppink2")) +
+  theme(axis.title.y = element_blank(),
+        legend.position = "none")
 
-preddf <- data.frame(Agriculture = 0,
-                     Sex = c(1, 0),
-                     Wetland = 0) 
-x <- settmodel.Final$coefficients
 
-settle.predict <- preddf %>%
-  mutate(PreLink = x[1]*Wetland + x[2]*(Wetland^2) + x[5]*Sex*(Wetland^2) + x[3]*Agriculture + x[4]*(Agriculture^2) + x[6]*Sex*(Agriculture^2)) %>%
-  mutate(SettleProb = exp(PreLink)/(1+exp(PreLink)))
 
-ggplot(data = settle.predict, aes(x = Wetland, y = SettleProb, color = as.factor(Sex))) +
-  geom_line() +
-  theme_classic()
 
+require(patchwork)
+
+combo.plot <- wetplot + agplot +
+  plot_layout(ncol = 2) + plot_annotation(tag_levels = 'A') & 
+  theme(plot.tag = element_text(size = 20), plot.tag.position = c(0.15,.95))
+
+ggsave(combo.plot, filename = "./Figures/SettleDecisionPlot.jpg",
+       width = 12, height = 6)
 
 #################################################################################################################
 ### CREATE PLOTS ###

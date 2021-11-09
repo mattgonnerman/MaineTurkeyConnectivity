@@ -99,9 +99,9 @@ st_write(movelinesonly, "./GIS/WMDConnectLines_SeasonMove.shp", overwrite = T)
 movelinesonly <- st_read("./GIS/WMDConnectLines_SeasonMove.shp")
 
 ### Designate Plot Location and filter points/lines to within polygon to reduce processing time
-plotcenter <- st_as_sf(data.frame(y = 44.811083, x = -68.774231), coords = c("x", "y"), crs = 4326) %>%
+plotcenter <- st_as_sf(data.frame(y = 44.744358, x = -69.959752), coords = c("x", "y"), crs = 4326) %>%
   st_transform(crs(movepointsonly))
-plotbuffer <- st_buffer(plotcenter, 50000, endCapStyle = "SQUARE") %>% mutate(In = 1)
+plotbuffer <- st_buffer(plotcenter, 20000, endCapStyle = "SQUARE") %>% mutate(In = 1)
 
 moveinbuffer <- simconnect.lines %>%
   mutate(NPoints = mapview::npts(simconnect.lines, by_feature = T)) %>%
@@ -113,13 +113,13 @@ movepoints.reduced <- st_join(movepointsonly %>% dplyr::select(BirdID), st_buffe
    filter(In == 1)
 
 ### Create kernel density surface from points
-# require(raster)
-# require(adehabitatHR)
+require(raster)
+require(adehabitatHR)
 
 movepoints.sp <- as(movepoints.reduced %>% dplyr::select(-BirdID, -In), "Spatial")
-move.kde <- kernelUD(movepoints.sp, h="href", grid = 1000, extent = 0)
+move.kde <- kernelUD(movepoints.sp, h="href", grid = 2000, extent = 0)
 move.raster <- raster(move.kde)
-writeRaster(move.raster, "./GIS/SimMoveDensity.tif")
+writeRaster(move.raster, "./GIS/SimMoveDensity.tif", overwrite = T)
 move.raster <- raster("./GIS/SimMoveDensity.tif")
 move.raster <- projectRaster(move.raster, crs = 4326)
 move.raster_pts <- rasterToPoints(move.raster, spatial = TRUE)
@@ -174,7 +174,7 @@ hs.plot <- ggplot() +
 ### Plot of Simulated Locations
 location.plot <- ggmap(lineMap) +
   geom_sf(data = movepoints.reduced %>% st_transform(4326),
-          shape = 16, fill = alpha("red", .01), color = alpha("red", .01)) +
+          shape = 16, fill = alpha("red", .03), color = alpha("red", .03)) +
   coord_sf(xlim = extent(plotbuffer %>% st_transform(4326))[c(1,2)],
            ylim = extent(plotbuffer %>% st_transform(4326))[c(3,4)],
            expand = F, label_graticule = "SE") +
@@ -204,8 +204,8 @@ require(patchwork)
 
 comboplot <- hs.plot + location.plot + kde.plot + 
   plot_layout(ncol = 3) + plot_annotation(tag_levels = 'A') & 
-  theme(plot.tag = element_text(size = 30), plot.tag.position = c(-0.03,.95))
+  theme(plot.tag = element_text(size = 30), plot.tag.position = c(-0.03,1))
 
 
 ggsave(comboplot, file = "./Figures/HS and KDE ZoomMap.jpg",
-       width = 35, height = 15)
+       width = 35, height = 10)
