@@ -69,12 +69,18 @@ sim.662.frames <- frames_spatial(sim.662.align, ext = extent(st_buffer(hex662, 2
                                  r_times = rtimeslist) %>%
   add_labels(x = "Longitude", y = "Latitude") %>%
   add_gg(gg = expr(geom_sf(data = hexmap %>% st_transform(crs(sim.662.align)),
-                             fill = NA, color = "black", lwd = 1.2)))%>% 
+                             fill = NA, color = "black", lwd = 1.2))) %>% 
+  add_gg(gg = expr(theme_linedraw())) %>% 
   add_gg(gg = expr(coord_sf(xlim = extent(st_buffer(hex662, 2000) %>% st_transform(crs(sim.662.align)))[1:2],
-                                                           ylim = extent(st_buffer(hex662, 2000) %>% st_transform(crs(sim.662.align)))[3:4])))
+                            ylim = extent(st_buffer(hex662, 2000) %>% st_transform(crs(sim.662.align)))[3:4],
+                            expand = F, label_graticule = "SE"))) %>%
+  add_gg(gg = expr(viridis::scale_fill_viridis(labels = c("Low", "High"),
+                                               breaks = c(min(hssurface_df$FullHS_Day),
+                                                          max(hssurface_df$FullHS_Day))))) %>% 
+  add_gg(gg = expr(theme(axis.title = element_blank())))%>% 
+  add_gg(gg = expr(labs(fill = "Habitat\nSuitability")))
+  
 
 animate_frames(sim.662.frames, out_file = "./Figures/AnimationTest.gif",
-               fps = 20, overwrite = T, display = T)
-
-
+               fps = 10, overwrite = T, display = T)
 
